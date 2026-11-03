@@ -1,0 +1,386 @@
+/* =============================================
+   HMO Landlord System — Main Stylesheet
+   HMRC-inspired: white background, leaf green
+   ============================================= */
+
+:root {
+    --green-primary: #00703c;
+    --green-dark: #005a30;
+    --green-light: #e8f5ee;
+    --green-accent: #85c99e;
+    --white: #ffffff;
+    --grey-light: #f3f2f1;
+    --grey-mid: #b1b4b6;
+    --grey-dark: #505a5f;
+    --text-primary: #0b0c0c;
+    --text-secondary: #505a5f;
+    --error: #d4351c;
+    --warning: #fd0;
+    --border: #b1b4b6;
+    --sidebar-width: 220px;
+    --header-height: 52px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: "GDS Transport", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background: var(--white);
+}
+
+/* ---- Header ---- */
+.site-header {
+    background: var(--green-primary);
+    color: var(--white);
+    height: var(--header-height);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 4px solid var(--green-dark);
+}
+
+.header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 100%;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--white);
+    text-decoration: none;
+}
+
+.logo-mark {
+    color: var(--green-accent);
+    font-size: 22px;
+}
+
+.header-nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 14px;
+}
+
+.user-info {
+    color: var(--green-accent);
+}
+
+.btn-link {
+    color: var(--white);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* ---- Layout ---- */
+.layout {
+    display: flex;
+    min-height: calc(100vh - var(--header-height) - 48px);
+}
+
+/* ---- Sidebar ---- */
+.sidebar {
+    width: var(--sidebar-width);
+    background: var(--grey-light);
+    border-right: 1px solid var(--border);
+    padding: 16px 0;
+    flex-shrink: 0;
+}
+
+.sidebar-nav ul {
+    list-style: none;
+}
+
+.sidebar-nav .nav-link {
+    display: block;
+    padding: 8px 20px;
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 15px;
+    border-left: 4px solid transparent;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.sidebar-nav .nav-link:hover,
+.sidebar-nav .nav-link.active {
+    background: var(--green-light);
+    border-left-color: var(--green-primary);
+    color: var(--green-dark);
+    font-weight: 600;
+}
+
+.nav-section {
+    padding: 14px 20px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--grey-dark);
+}
+
+/* ---- Main Content ---- */
+.main-content {
+    flex: 1;
+    padding: 28px 36px;
+    overflow-x: auto;
+}
+
+h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--green-primary);
+}
+
+h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 24px 0 12px;
+    color: var(--text-primary);
+}
+
+h3 {
+    font-size: 17px;
+    font-weight: 700;
+    margin: 16px 0 8px;
+    color: var(--text-primary);
+}
+
+p {
+    margin-bottom: 12px;
+    color: var(--text-secondary);
+}
+
+/* ---- Buttons ---- */
+.btn {
+    display: inline-block;
+    padding: 8px 18px;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1.4;
+}
+
+.btn-primary {
+    background: var(--green-primary);
+    color: var(--white);
+}
+
+.btn-primary:hover {
+    background: var(--green-dark);
+}
+
+.btn-secondary {
+    background: var(--grey-light);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+    background: #dcdcdc;
+}
+
+.btn-danger {
+    background: var(--error);
+    color: var(--white);
+}
+
+.btn-sm {
+    padding: 4px 12px;
+    font-size: 13px;
+}
+
+/* ---- Tables ---- */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15px;
+    margin-bottom: 24px;
+}
+
+thead th {
+    background: var(--green-primary);
+    color: var(--white);
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+}
+
+tbody tr:nth-child(even) {
+    background: var(--grey-light);
+}
+
+tbody tr:hover {
+    background: var(--green-light);
+}
+
+td, th {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+/* ---- Forms ---- */
+.form-group {
+    margin-bottom: 18px;
+}
+
+label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 4px;
+    font-size: 15px;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+select,
+textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 2px solid var(--grey-dark);
+    border-radius: 2px;
+    font-size: 15px;
+    color: var(--text-primary);
+    background: var(--white);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: 3px solid var(--warning);
+    outline-offset: 0;
+    border-color: var(--text-primary);
+}
+
+.form-hint {
+    font-size: 13px;
+    color: var(--grey-dark);
+    margin-top: 2px;
+}
+
+.form-error {
+    color: var(--error);
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+/* ---- Cards / Dashboard Panels ---- */
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 18px;
+    margin-bottom: 28px;
+}
+
+.card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--green-primary);
+    border-radius: 2px;
+    padding: 18px 20px;
+}
+
+.card-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--grey-dark);
+    margin-bottom: 6px;
+}
+
+.card-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--green-dark);
+}
+
+.card-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+/* ---- Status badges ---- */
+.badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.badge-green  { background: var(--green-light); color: var(--green-dark); }
+.badge-red    { background: #fde8e4; color: var(--error); }
+.badge-grey   { background: var(--grey-light); color: var(--grey-dark); }
+.badge-yellow { background: #fff7bf; color: #594d00; }
+
+/* ---- Alerts / Flash messages ---- */
+.flash-messages {
+    margin-bottom: 20px;
+}
+
+.alert {
+    padding: 12px 16px;
+    border-left: 4px solid var(--green-primary);
+    background: var(--green-light);
+    margin-bottom: 10px;
+    font-size: 15px;
+}
+
+.alert-error, .alert-danger {
+    border-left-color: var(--error);
+    background: #fde8e4;
+    color: var(--error);
+}
+
+.alert-warning {
+    border-left-color: #f47738;
+    background: #fef0e4;
+}
+
+/* ---- Footer ---- */
+.site-footer {
+    background: var(--grey-light);
+    border-top: 1px solid var(--border);
+    padding: 12px 24px;
+    font-size: 12px;
+    color: var(--grey-dark);
+    text-align: center;
+}
+
+/* ---- Utility ---- */
+.text-right { text-align: right; }
+.text-muted { color: var(--text-secondary); }
+.mt-1 { margin-top: 8px; }
+.mt-2 { margin-top: 16px; }
+.mt-3 { margin-top: 24px; }
+.mb-1 { margin-bottom: 8px; }
+.mb-2 { margin-bottom: 16px; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }

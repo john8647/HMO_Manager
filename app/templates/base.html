@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}HMO Manager{% endblock %} — HMO Landlord System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+
+<header class="site-header">
+    <div class="header-inner">
+        <div class="logo">
+            <span class="logo-mark">&#9632;</span>
+            <span class="logo-text">HMO Manager</span>
+        </div>
+        {% if current_user.is_authenticated %}
+        <nav class="header-nav">
+            <span class="user-info">{{ current_user.username }} ({{ current_user.role }})</span>
+            <a href="{{ url_for('auth.logout') }}" class="btn-link">Log out</a>
+        </nav>
+        {% endif %}
+    </div>
+</header>
+
+<div class="layout">
+
+    {% if current_user.is_authenticated %}
+    <aside class="sidebar">
+        <nav class="sidebar-nav">
+            <ul>
+                <li><a href="{{ url_for('dashboard.index') }}" class="nav-link">&#9632; Dashboard</a></li>
+                <li class="nav-section">Properties</li>
+                <li><a href="{{ url_for('properties.index') }}" class="nav-link">Properties &amp; Rooms</a></li>
+                <li><a href="{{ url_for('tenants.index') }}" class="nav-link">Tenants</a></li>
+                <li><a href="{{ url_for('deposits.index') }}" class="nav-link">Deposits</a></li>
+                <li class="nav-section">Finance</li>
+                <li><a href="{{ url_for('bills.index') }}" class="nav-link">Bills</a></li>
+                <li><a href="{{ url_for('invoices.index') }}" class="nav-link">Invoices</a></li>
+                <li><a href="{{ url_for('transactions.index') }}" class="nav-link">Transactions</a></li>
+                <li><a href="{{ url_for('expenses.index') }}" class="nav-link">Expenses</a></li>
+                <li><a href="{{ url_for('reports.index') }}" class="nav-link">QuickFile Export</a></li>
+                <li class="nav-section">Management</li>
+                <li><a href="{{ url_for('compliance.index') }}" class="nav-link">Compliance</a></li>
+                <li><a href="{{ url_for('tasks.index') }}" class="nav-link">Tasks</a></li>
+                {% if current_user.role == 'admin' %}
+                <li class="nav-section">Admin</li>
+                <li><a href="{{ url_for('admin.index') }}" class="nav-link">Admin Panel</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </aside>
+    {% endif %}
+
+    <main class="main-content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+</div>
+
+<footer class="site-footer">
+    <p>HMO Landlord Management System &mdash; Private use only &mdash;
+    Personal data processed under GDPR Article 6(1)(b) contractual necessity</p>
+</footer>
+
+</body>
+</html>

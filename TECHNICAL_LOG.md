@@ -1,0 +1,594 @@
+# Technical Development Log
+## HMO Landlord Management System — Project 5
+
+**Project Path:** `C:\scripts\codeInst_projects\Project5\Prototype`
+**Started:** 2026
+**Stack:** Python · Flask · UV · SQLite → PostgreSQL · Jinja2 · WeasyPrint
+**Deployment Target:** DigitalOcean VPS
+
+---
+
+## Log Convention
+
+Each entry should follow this format:
+
+```
+### [DATE] — [CATEGORY] — [SHORT TITLE]
+- What was done
+- Why it was done
+- Any decisions made or alternatives considered
+- Known issues or follow-up actions
+```
+
+Categories: `SETUP` · `SCHEMA` · `FEATURE` · `BUG` · `REFACTOR` · `MIGRATION` · `SECURITY` · `DEPLOY`
+
+---
+
+## Architecture Overview
+
+### Tech Stack
+
+| Layer | Technology | Notes |
+|---|---|---|
+| Runtime manager | UV | Replaces pip/venv, fast dependency resolution |
+| Web framework | Flask | Lightweight, Python-native, Jinja2 templating |
+| Database (local) | SQLite | Single file `app.db`, zero config for development |
+| Database (production) | PostgreSQL | DigitalOcean managed DB when deployed |
+| ORM | SQLAlchemy | Abstracts SQLite↔PostgreSQL switch |
+| PDF generation | WeasyPrint | HTML/CSS → PDF, used for invoices and deposit certificates |
+| Frontend | Jinja2 + plain HTML/CSS | Server-side rendered, no JS framework |
+| Auth | Flask-Login + Werkzeug | Password hashing, session management |
+| CSV handling | Python csv module | Bank statement import and QuickFile export |
+| IDE | Visual Studio Code | Local development |
+
+### Design System
+- **Colour palette:** White background, leaf green primary (inspired by HMRC portal)
+- **Typography:** Clean sans-serif, system fonts preferred
+- **Layout:** Desktop-first, sidebar navigation, dashboard widgets
+
+---
+
+## Database Schema
+
+### `users`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| username | VARCHAR | Unique |
+| email | VARCHAR | Unique |
+| password_hash | VARCHAR | Werkzeug hashed |
+| role | VARCHAR | `admin` or `landlord` |
+| created_at | DATETIME | |
+| is_active | BOOLEAN | |
+
+### `properties` (houses)
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| user_id | FK → users | Owning landlord |
+| address_line1 | VARCHAR | |
+| address_line2 | VARCHAR | |
+| city | VARCHAR | |
+| postcode | VARCHAR | |
+| property_ref | VARCHAR | e.g. house 31 |
+| created_at | DATETIME | |
+
+### `rooms`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| property_id | FK → properties | |
+| room_name | VARCHAR | e.g. Room 2 |
+| is_occupied | BOOLEAN | |
+
+### `tenants`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| user_id | FK → users | Landlord owner |
+| first_name | VARCHAR | |
+| last_name | VARCHAR | |
+| email | VARCHAR | |
+| phone | VARCHAR | |
+| date_of_birth | DATE | |
+| nationality | VARCHAR | |
+| student_status | VARCHAR | Student / Non-student |
+| student_id | VARCHAR | |
+| university | VARCHAR | |
+| course_title | VARCHAR | |
+| council_tax_ref | VARCHAR | Council submission reference |
+| council_tax_number | VARCHAR | |
+| right_to_rent_ref | VARCHAR | |
+| home_address | TEXT | |
+| home_country | VARCHAR | |
+| invoice_account_number | VARCHAR | Sequential invoice ref |
+| is_active | BOOLEAN | |
+| has_left | BOOLEAN | |
+| council_informed_in | DATE | |
+| council_informed_left | DATE | |
+| portal_user_id | FK → users NULL | Linked portal login if invited |
+| created_at | DATETIME | |
+
+### `tenant_contracts`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| tenant_id | FK → tenants | |
+| property_id | FK → properties | |
+| room_id | FK → rooms | |
+| user_id | FK → users | Landlord |
+| start_date | DATE | |
+| renewal_date | DATE | |
+| end_date | DATE | NULL if ongoing |
+| monthly_rent | DECIMAL(10,2) | |
+| frequency | VARCHAR | monthly |
+| next_rent_due | DATE | Calculated from move-in day |
+| advanced_rent_agreed | DECIMAL(10,2) | |
+| remaining_advance_rent | DECIMAL(10,2) | |
+| is_active | BOOLEAN | |
+| notes | TEXT | |
+| created_at | DATETIME | |
+
+### `deposits`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| tenant_id | FK → tenants | |
+| contract_id | FK → tenant_contracts | |
+| amount | DECIMAL(10,2) | |
+| dps_scheme | VARCHAR | Scheme name |
+| dps_reference | VARCHAR | |
+| date_received | DATE | |
+| status | VARCHAR | `held` · `deducting` · `returned` |
+| deduction_amount | DECIMAL(10,2) | NULL until move-out |
+| deduction_reason | TEXT | |
+| amount_returned | DECIMAL(10,2) | |
+| surrender_accepted | BOOLEAN | Early surrender flag |
+| surrender_date | DATE | |
+| returned_date | DATE | |
+| notes | TEXT | |
+
+### `bills`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| property_id | FK → properties | |
+| user_id | FK → users | |
+| bill_type | VARCHAR | `gas` · `electric` · `council_tax` |
+| amount | DECIMAL(10,2) | Total bill amount |
+| period_start | DATE | |
+| period_end | DATE | |
+| days_in_period | INTEGER | Inclusive count |
+| is_shared | BOOLEAN | True for gas/electric/council tax |
+| date_entered | DATE | |
+| notes | TEXT | |
+
+### `bill_tenant_shares`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| bill_id | FK → bills | |
+| tenant_id | FK → tenants | |
+| contract_id | FK → tenant_contracts | |
+| days_present | INTEGER | Inclusive days in period |
+| share_amount | DECIMAL(10,2) | Calculated proportional share |
+| invoice_item_id | FK → invoice_items NULL | Linked once invoiced |
+
+### `invoices`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| invoice_number | VARCHAR | e.g. INV-2026-001 |
+| tenant_id | FK → tenants | |
+| contract_id | FK → tenant_contracts | |
+| property_id | FK → properties | |
+| user_id | FK → users | |
+| issue_date | DATE | |
+| due_date | DATE | Matches rent due date |
+| period_start | DATE | |
+| period_end | DATE | |
+| subtotal | DECIMAL(10,2) | |
+| arrears_carried_forward | DECIMAL(10,2) | |
+| total_due | DECIMAL(10,2) | |
+| status | VARCHAR | `draft` · `issued` · `paid` · `overdue` |
+| pdf_path | VARCHAR | Path to generated PDF |
+| created_at | DATETIME | |
+
+### `invoice_items`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| invoice_id | FK → invoices | |
+| description | VARCHAR | e.g. "Gas 15/09 - 14/10 \| 30 days" |
+| amount | DECIMAL(10,2) | |
+| charge_type_id | FK → picklist_charges | |
+| bill_id | FK → bills NULL | If from shared bill |
+
+### `transactions`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| tenant_id | FK → tenants NULL | |
+| contract_id | FK → tenant_contracts NULL | |
+| bill_id | FK → bills NULL | |
+| invoice_id | FK → invoices NULL | |
+| amount | DECIMAL(10,2) | |
+| credit_debit | VARCHAR | `cr` or `db` |
+| transaction_date | DATE | |
+| user_id | FK → users | |
+| type | VARCHAR | `Rent` · `Gas/Electric` · `Council Tax` · `Expense` etc |
+| charge_type_id | FK → picklist_charges NULL | |
+| payment_type_id | FK → picklist_payment_types NULL | |
+| bank_ref | VARCHAR | Bank account ref |
+| month_year_period | VARCHAR | e.g. August 2023 |
+| source | VARCHAR | `bank_import` · `manual` · `cash` |
+| is_matched | BOOLEAN | Bank statement matched |
+| bank_import_id | FK → bank_imports NULL | |
+| charges_are_paid | BOOLEAN | |
+| notes | TEXT | |
+
+### `bank_imports`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| user_id | FK → users | |
+| property_id | FK → properties NULL | |
+| import_date | DATETIME | |
+| filename | VARCHAR | |
+| row_count | INTEGER | |
+| matched_count | INTEGER | |
+| unmatched_count | INTEGER | |
+
+### `bank_import_rows`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| import_id | FK → bank_imports | |
+| transaction_date | DATE | |
+| transaction_type | VARCHAR | DD · FPI · DEB etc |
+| sort_code | VARCHAR | |
+| account_number | VARCHAR | |
+| description | VARCHAR | Raw bank description |
+| debit_amount | DECIMAL(10,2) NULL | |
+| credit_amount | DECIMAL(10,2) NULL | |
+| match_status | VARCHAR | `auto` · `manual` · `unmatched` · `split` |
+| transaction_id | FK → transactions NULL | After matching |
+
+### `transaction_legend`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| user_id | FK → users | |
+| description_pattern | VARCHAR | e.g. GOLLA H |
+| tenant_id | FK → tenants NULL | |
+| income_type | VARCHAR | |
+| expense_type | VARCHAR | |
+| preferred_description | VARCHAR | Mapped label |
+
+### `expenses`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| user_id | FK → users | |
+| property_id | FK → properties NULL | |
+| charge_type_id | FK → picklist_charges | |
+| description | VARCHAR | |
+| amount | DECIMAL(10,2) | |
+| expense_date | DATE | |
+| source | VARCHAR | `bank` · `cash` |
+| bank_import_row_id | FK → bank_import_rows NULL | |
+| receipt_path | VARCHAR | Uploaded file path |
+| notes | TEXT | |
+
+### `picklist_charges`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| charge_name | VARCHAR | |
+| hmrc_category | VARCHAR | UK Property box reference |
+
+### `picklist_payment_types`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| payment_name | VARCHAR | |
+| hmrc_income_category | VARCHAR | |
+
+### `compliance_documents`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| property_id | FK → properties | |
+| user_id | FK → users | |
+| document_type | VARCHAR | Gas Safety · EICR · EPC · Fire Alarm · Insurance · Tariff etc |
+| issue_date | DATE | |
+| expiry_date | DATE | |
+| renewal_years | INTEGER | 1, 2, or 5 |
+| file_path | VARCHAR | Uploaded PDF |
+| notes | TEXT | |
+| created_at | DATETIME | |
+
+### `tasks`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| user_id | FK → users | |
+| title | VARCHAR | |
+| description | TEXT | |
+| priority | VARCHAR | `low` · `medium` · `high` · `urgent` |
+| status | VARCHAR | `open` · `in_progress` · `complete` |
+| property_id | FK → properties NULL | |
+| room_id | FK → rooms NULL | |
+| tenant_id | FK → tenants NULL | |
+| due_date | DATE NULL | |
+| created_at | DATETIME | |
+| completed_at | DATETIME NULL | |
+
+### `messages`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| from_user_id | FK → users | |
+| to_user_id | FK → users | |
+| tenant_id | FK → tenants NULL | |
+| subject | VARCHAR | |
+| body | TEXT | |
+| is_read | BOOLEAN | |
+| created_at | DATETIME | |
+
+---
+
+## Project Folder Structure
+
+```
+C:\scripts\codeInst_projects\Project5\Prototype\
+│
+├── app/
+│   ├── __init__.py              # App factory, extensions init
+│   ├── models.py                # SQLAlchemy models
+│   ├── auth/
+│   │   ├── routes.py            # Login, register, reset password
+│   │   └── forms.py
+│   ├── dashboard/
+│   │   └── routes.py
+│   ├── properties/
+│   │   ├── routes.py
+│   │   └── forms.py
+│   ├── tenants/
+│   │   ├── routes.py
+│   │   └── forms.py
+│   ├── contracts/
+│   │   └── routes.py
+│   ├── bills/
+│   │   ├── routes.py
+│   │   └── calculator.py        # Pro-rata bill split logic
+│   ├── invoices/
+│   │   ├── routes.py
+│   │   ├── generator.py         # Invoice creation logic
+│   │   └── pdf.py               # WeasyPrint PDF rendering
+│   ├── transactions/
+│   │   ├── routes.py
+│   │   ├── importer.py          # CSV bank import logic
+│   │   └── matcher.py           # Auto-match logic
+│   ├── expenses/
+│   │   └── routes.py
+│   ├── reports/
+│   │   ├── routes.py
+│   │   └── quickfile.py         # QuickFile CSV export
+│   ├── compliance/
+│   │   └── routes.py
+│   ├── tasks/
+│   │   └── routes.py
+│   ├── deposits/
+│   │   ├── routes.py
+│   │   └── pdf.py               # Deposit certificate PDF
+│   ├── portal/
+│   │   └── routes.py            # Tenant portal views
+│   ├── admin/
+│   │   └── routes.py
+│   ├── templates/
+│   │   ├── base.html
+│   │   ├── dashboard/
+│   │   ├── properties/
+│   │   ├── tenants/
+│   │   ├── bills/
+│   │   ├── invoices/
+│   │   ├── transactions/
+│   │   ├── compliance/
+│   │   ├── tasks/
+│   │   ├── portal/
+│   │   └── pdf/                 # PDF-specific templates
+│   ├── static/
+│   │   ├── css/
+│   │   │   └── main.css
+│   │   ├── js/
+│   │   └── uploads/             # Uploaded compliance docs, receipts
+│   └── utils/
+│       ├── decorators.py        # Role-based access control
+│       ├── date_helpers.py      # Inclusive day count, period logic
+│       └── gdpr.py              # Consent helpers
+│
+├── migrations/                  # Flask-Migrate Alembic files
+├── tests/                       # Unit tests
+├── instance/
+│   └── app.db                   # SQLite database file
+├── .env                         # Secret key, config (NOT committed)
+├── .gitignore
+├── config.py                    # App config classes (dev/prod)
+├── pyproject.toml               # UV / PEP 517 project file
+├── README.md
+└── TECHNICAL_LOG.md             # This file
+```
+
+---
+
+## Module Route Plan
+
+| Module | URL Prefix | Key Routes |
+|---|---|---|
+| Auth | `/auth` | `/login` `/logout` `/register` `/reset-password` |
+| Dashboard | `/` | `/dashboard` |
+| Properties | `/properties` | `/` `/add` `/<id>` `/<id>/edit` |
+| Rooms | `/properties/<id>/rooms` | `/add` `/<room_id>/edit` |
+| Tenants | `/tenants` | `/` `/add` `/<id>` `/<id>/edit` `/<id>/contracts` |
+| Contracts | `/contracts` | `/<id>` `/add` `/<id>/edit` `/<id>/end` |
+| Deposits | `/deposits` | `/<id>` `/add` `/<id>/deduct` `/<id>/certificate.pdf` |
+| Bills | `/bills` | `/` `/add` `/<id>/shares` |
+| Invoices | `/invoices` | `/` `/generate` `/<id>` `/<id>/pdf` |
+| Transactions | `/transactions` | `/` `/import` `/match/<import_id>` `/add` |
+| Expenses | `/expenses` | `/` `/add` `/<id>/edit` |
+| Reports | `/reports` | `/quickfile` `/export` |
+| Compliance | `/compliance` | `/` `/<id>/edit` `/add` |
+| Tasks | `/tasks` | `/` `/add` `/<id>/edit` `/<id>/complete` |
+| Portal | `/portal` | `/dashboard` `/invoices` `/contract` `/messages` |
+| Admin | `/admin` | `/users` `/add-landlord` |
+
+---
+
+## Bill Calculation Logic
+
+**Pro-rata presence formula:**
+
+```
+days_present = (min(contract_end, period_end) - max(contract_start, period_start)).days + 1
+total_days = (period_end - period_start).days + 1
+tenant_share = (days_present / sum_of_all_tenant_days) * bill_amount
+```
+
+- Only tenants with an **active contract overlapping the billing period** are included
+- Days are **inclusive** (01/07 → 31/07 = 31 days)
+- Council tax is billed **in advance** for the current month (01/07 → 31/07)
+- Gas/Electric follows its own cycle (not always 1st–end of month)
+- Once a bill is entered, `bill_tenant_shares` rows are auto-created
+- These shares are then pulled into invoice line items at invoice generation time
+
+---
+
+## Invoice Numbering
+
+Format: `INV-YYYY-NNNN`
+Example: `INV-2026-0001`
+
+Sequential counter stored per landlord user. Resets to 0001 at start of each year. Invoice account number per tenant stored in `tenants.invoice_account_number`.
+
+---
+
+## Bank CSV Import Format
+
+Expected columns from bank export:
+```
+Transaction Date, Transaction Type, Sort Code, Account Number, Transaction Description, Debit Amount, Credit Amount
+```
+
+Auto-match process:
+1. Parse each row
+2. Check `transaction_legend` for matching `description_pattern`
+3. If matched → assign to tenant, flag as `auto`
+4. If amount matches outstanding invoice exactly → link invoice
+5. If amount doesn't match cleanly → flag for manual split or intervention
+6. Unmatched rows → queued for manual review
+7. Cash payments entered separately via manual entry form
+
+---
+
+## QuickFile Export Format
+
+Output CSV mirrors bank statement format with corrected descriptions:
+```
+Transaction Date, Transaction Type, Sort Code, Account Number, Transaction Description, Debit Amount, Credit Amount
+```
+
+- Filtered by **property** and **tax year** (April–April)
+- Descriptions use `preferred_description` from `transaction_legend` or charge type name
+- Income rows (rent, bill shares received) as Credit
+- Expense rows (bills paid, maintenance, etc.) as Debit
+
+---
+
+## Deposit Workflow States
+
+```
+held → deducting → returned
+```
+
+Trigger deduction workflow when:
+- Tenant has moved out OR returned keys, AND
+- Tenancy has NOT yet ended OR outstanding charges exist
+
+Two paths:
+- **Breach / insufficient notice:** Rent continues to end of notice period. Deposit covers rent owed + damages + utilities. Remainder returned.
+- **Accepted early surrender:** Charge rent to agreed surrender date only. Assess utilities/damages. Return remainder.
+
+---
+
+## Security Notes
+
+- Passwords hashed with Werkzeug `generate_password_hash`
+- Flask-Login manages sessions
+- Role-based access via decorators (`@landlord_required`, `@admin_required`)
+- GDPR basis: **Contractual necessity** (tenancy agreement) + **Legal obligation** (Right to Rent, council tax notification)
+- Tenant data fields: name, DOB, nationality, email, phone, student status, council refs
+- Data access: each landlord sees only their own `user_id`-scoped records
+- Uploaded files stored in `/app/static/uploads/` with randomised filenames
+- `.env` file holds `SECRET_KEY`, `DATABASE_URL` — never committed to git
+
+---
+
+## Development Log Entries
+
+### [2026] — SETUP — Initial project scaffold
+- Project created at `C:\scripts\codeInst_projects\Project5\Prototype`
+- Stack decided: Flask + UV + SQLite + Jinja2 + WeasyPrint
+- Design: HMRC-inspired white and leaf green
+- Two initial roles: admin, landlord. Tenant portal planned for later phase.
+- Interview conducted to capture full system requirements
+- README.md and TECHNICAL_LOG.md produced
+- Full schema designed from existing prototype tables:
+  - Tenant, TenantContracts, TransactionsTable, TransactionLegend
+  - InvoiceItems, picklistCharges, picklistPaymentType
+- Existing data migration to be handled manually by developer
+
+---
+
+### [03/11/2026] — SETUP — Project folder and file structure created
+- All files initially saved flat into root `LandlordApp/` folder rather than subfolders
+- Fixed by creating `app/` directory structure manually via PowerShell
+- Moved `models.py`, `main.css`, `base.html`, `calculator.py`, `importer.py`, `quickfile.py` into correct subdirectories
+- Blueprint `routes.py` files initially created with null bytes via PowerShell `Out-File`
+- Fixed by writing all files via a Python script (`fix_files.py`) using UTF-8 encoding
+- Lesson: always use Python to write project files on Windows, not PowerShell string output
+- Project path confirmed as `C:\scripts\codeInst_projects\Project5\LandlordApp`
+
+### [03/11/2026] — SCHEMA — Database initialised with Flask-Migrate
+- `models.py` was not imported at migration time — added `from app import models` to `run.py`
+- Ran `flask db init` → created `migrations/` folder
+- Ran `flask db migrate -m "initial schema"` → detected all 20 tables
+- Migration file: `migrations/versions/596431045e2f_initial_schema.py`
+- Ran `flask db upgrade` → `instance/app.db` created with full schema
+- All 20 tables confirmed: users, properties, rooms, tenants, tenant_contracts, deposits,
+  bills, bill_tenant_shares, invoices, invoice_items, transactions, bank_imports,
+  bank_import_rows, transaction_legend, expenses, picklist_charges, picklist_payment_types,
+  compliance_documents, tasks, messages
+
+### [03/11/2026] — FEATURE — Auth module built and working
+- Built `app/auth/routes.py` with login, logout, register, change_password routes
+- Login uses Flask-Login `login_user()` with remember-me support
+- Passwords hashed with Werkzeug `generate_password_hash` / `check_password_hash`
+- Register page validates: username unique, email unique, password min 8 chars, confirm match
+- Role selection on register: landlord or admin
+- Templates created: `login.html` (standalone, no sidebar), `register.html`, `change_password.html`
+- Login page has its own standalone layout (no sidebar, centred card)
+- `seed_admin.py` script used to create first admin user (username: admin)
+- Admin password changed after first login via change_password page
+- All 14 module stub pages load correctly showing "Under construction"
+- Dashboard shows quick-link buttons and welcome message with username and role
+
+### [03/11/2026] — SETUP — Run command confirmed
+- Correct run command: `uv run python run.py`
+- No need to set `FLASK_APP` environment variable
+- Flask debug mode active in development — auto-reloads on file save
+- App accessible at `http://127.0.0.1:5000`
+
+---
+
+*Add new entries above this line as development progresses.*

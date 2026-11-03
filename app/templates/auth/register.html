@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Register New User{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Register New User</h1>
+    <a href="{{ url_for('dashboard.index') }}" class="btn btn-secondary">
+        &larr; Back to Dashboard
+    </a>
+</div>
+
+<p>Create a new landlord account. The user will be able to log in immediately after registration.</p>
+
+<div style="max-width: 480px;">
+    <form method="POST" action="{{ url_for('auth.register') }}">
+
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username"
+                   value="{{ username or '' }}" required autofocus>
+            <span class="form-hint">Used to log in. No spaces.</span>
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email address</label>
+            <input type="email" id="email" name="email"
+                   value="{{ email or '' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="role">Role</label>
+            <select id="role" name="role">
+                <option value="landlord" {% if role == 'landlord' %}selected{% endif %}>
+                    Landlord
+                </option>
+                <option value="admin" {% if role == 'admin' %}selected{% endif %}>
+                    Administrator
+                </option>
+            </select>
+            <span class="form-hint">
+                Landlord: access to own properties only.
+                Admin: full system access.
+            </span>
+        </div>
+
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required>
+            <span class="form-hint">Minimum 8 characters.</span>
+        </div>
+
+        <div class="form-group">
+            <label for="confirm_password">Confirm password</label>
+            <input type="password" id="confirm_password" name="confirm_password" required>
+        </div>
+
+        <div class="mt-2">
+            <button type="submit" class="btn btn-primary">Create account</button>
+            <a href="{{ url_for('dashboard.index') }}"
+               class="btn btn-secondary" style="margin-left: 8px;">Cancel</a>
+        </div>
+
+    </form>
+</div>
+{% endblock %}
