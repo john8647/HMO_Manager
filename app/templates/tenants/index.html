@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Tenants{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Tenants</h1>
+    <a href="{{ url_for('tenants.add') }}" class="btn btn-primary">+ Add Tenant</a>
+</div>
+
+<!-- Active / Inactive toggle -->
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('tenants.index', show='active') }}"
+       class="btn {% if show == 'active' %}btn-primary{% else %}btn-secondary{% endif %}">
+        Active
+    </a>
+    <a href="{{ url_for('tenants.index', show='inactive') }}"
+       class="btn {% if show == 'inactive' %}btn-primary{% else %}btn-secondary{% endif %}"
+       style="margin-left: 6px;">
+        Inactive / Past
+    </a>
+</div>
+
+{% if tenants %}
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Property</th>
+            <th>Room</th>
+            <th>Rent / month</th>
+            <th>Next Rent Due</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for tenant in tenants %}
+        <tr>
+            <td>
+                <a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}">
+                    {{ tenant.full_name }}
+                </a>
+            </td>
+            <td>
+                {% if tenant.active_contract %}
+                    {{ tenant.active_contract.property.address_line1 }}
+                {% else %}
+                    <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if tenant.active_contract %}
+                    {{ tenant.active_contract.room.room_name }}
+                {% else %}
+                    <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if tenant.active_contract %}
+                    £{{ '%.2f'|format(tenant.active_contract.monthly_rent) }}
+                {% else %}
+                    <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if tenant.active_contract and tenant.active_contract.next_rent_due %}
+                    {% set due = tenant.active_contract.next_rent_due %}
+                    {% set today = namespace(d=none) %}
+                    {{ due.strftime('%d %b %Y') }}
+                {% else %}
+                    <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if tenant.is_active %}
+                    <span class="badge badge-green">Active</span>
+                {% else %}
+                    <span class="badge badge-grey">Inactive</span>
+                {% endif %}
+            </td>
+            <td>
+                <a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}"
+                   class="btn btn-secondary btn-sm">View</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card" style="max-width: 500px;">
+    <div class="card-title">No {{ show }} tenants</div>
+    {% if show == 'active' %}
+    <p style="margin: 8px 0 16px;">Add your first tenant to get started.</p>
+    <a href="{{ url_for('tenants.add') }}" class="btn btn-primary">+ Add Tenant</a>
+    {% else %}
+    <p style="margin: 8px 0;">No past tenants on record.</p>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

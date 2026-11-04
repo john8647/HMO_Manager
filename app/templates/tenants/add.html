@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Add Tenant{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Add Tenant</h1>
+    <a href="{{ url_for('tenants.index') }}" class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<p class="text-muted">After saving, you will be taken straight to create their contract.</p>
+
+<form method="POST" action="{{ url_for('tenants.add') }}">
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; max-width: 860px;">
+
+    <!-- Left column -->
+    <div>
+        <h2>Personal Details</h2>
+
+        <div class="form-group">
+            <label for="first_name">First Name <span style="color:var(--error);">*</span></label>
+            <input type="text" id="first_name" name="first_name"
+                   value="{{ request.form.get('first_name','') }}" required autofocus>
+        </div>
+
+        <div class="form-group">
+            <label for="last_name">Last Name <span style="color:var(--error);">*</span></label>
+            <input type="text" id="last_name" name="last_name"
+                   value="{{ request.form.get('last_name','') }}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email"
+                   value="{{ request.form.get('email','') }}">
+        </div>
+
+        <div class="form-group">
+            <label for="phone">Phone</label>
+            <input type="text" id="phone" name="phone"
+                   value="{{ request.form.get('phone','') }}">
+        </div>
+
+        <div class="form-group">
+            <label for="date_of_birth">Date of Birth</label>
+            <input type="date" id="date_of_birth" name="date_of_birth"
+                   value="{{ request.form.get('date_of_birth','') }}">
+        </div>
+
+        <div class="form-group">
+            <label for="nationality">Nationality</label>
+            <input type="text" id="nationality" name="nationality"
+                   value="{{ request.form.get('nationality','') }}">
+        </div>
+
+        <div class="form-group">
+            <label for="home_address">Home Address</label>
+            <textarea id="home_address" name="home_address"
+                      rows="3">{{ request.form.get('home_address','') }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="home_country">Home Country</label>
+            <input type="text" id="home_country" name="home_country"
+                   value="{{ request.form.get('home_country','') }}">
+        </div>
+    </div>
+
+    <!-- Right column -->
+    <div>
+        <h2>Student &amp; Compliance</h2>
+
+        <div class="form-group">
+            <label for="student_status">Student Status</label>
+            <select id="student_status" name="student_status">
+                <option value="Non-student"
+                    {% if request.form.get('student_status','') == 'Non-student' %}selected{% endif %}>
+                    Non-student
+                </option>
+                <option value="Student"
+                    {% if request.form.get('student_status','') == 'Student' %}selected{% endif %}>
+                    Student
+                </option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="student_id">Student ID Number</label>
+            <input type="text" id="student_id" name="student_id"
+                   value="{{ request.form.get('student_id','') }}">
+        </div>
+
+        <div class="form-group">
+            <label for="university">University / School</label>
+            <input type="text" id="university" name="university"
+                   value="{{ request.form.get('university','') }}">
+        </div>
+
+        <div class="form-group">
+            <label for="course_title">Course Title</label>
+            <input type="text" id="course_title" name="course_title"
+                   value="{{ request.form.get('course_title','') }}">
+        </div>
+
+        <div class="form-group">
+            <label for="right_to_rent_ref">Right to Rent Reference</label>
+            <input type="text" id="right_to_rent_ref" name="right_to_rent_ref"
+                   value="{{ request.form.get('right_to_rent_ref','') }}">
+        </div>
+
+        <div class="form-group">
+            <label for="council_tax_ref">Council Tax Submission Ref</label>
+            <input type="text" id="council_tax_ref" name="council_tax_ref"
+                   value="{{ request.form.get('council_tax_ref','') }}">
+        </div>
+
+        <div class="form-group">
+            <label for="council_tax_number">Council Tax Number</label>
+            <input type="text" id="council_tax_number" name="council_tax_number"
+                   value="{{ request.form.get('council_tax_number','') }}">
+        </div>
+
+        <h2>GDPR Consent</h2>
+        <div class="card" style="border-top-color: var(--green-primary);">
+            <p style="font-size:14px; margin-bottom:12px;">
+                Personal data is held under <strong>GDPR Article 6(1)(b)</strong> —
+                contractual necessity (tenancy agreement) — and <strong>Article 6(1)(c)</strong>
+                — legal obligation (Right to Rent checks, council tax notification).
+            </p>
+            <div style="display:flex; align-items:flex-start; gap:10px;">
+                <input type="checkbox" id="gdpr_consent" name="gdpr_consent"
+                       style="width:auto; margin-top:3px;"
+                       {% if request.form.get('gdpr_consent') %}checked{% endif %} required>
+                <label for="gdpr_consent" style="font-weight:normal; font-size:14px;">
+                    I confirm the tenant has been informed their personal data will be
+                    held and processed in accordance with our GDPR obligations under
+                    their tenancy agreement.
+                </label>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="mt-3">
+    <button type="submit" class="btn btn-primary">Save Tenant &amp; Add Contract &rarr;</button>
+    <a href="{{ url_for('tenants.index') }}"
+       class="btn btn-secondary" style="margin-left: 8px;">Cancel</a>
+</div>
+
+</form>
+{% endblock %}

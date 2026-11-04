@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Generate Invoice{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Generate Invoice</h1>
+    <a href="{{ url_for('invoices.index') }}" class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<p class="text-muted">
+    Select a property and tenant, choose the billing period, and the system will
+    pull in their rent and any uninvoiced bill shares automatically.
+</p>
+
+<form method="POST" action="{{ url_for('invoices.generate') }}">
+<input type="hidden" name="action" value="generate">
+<div style="max-width: 600px; margin-top: 20px;">
+
+    <!-- Step 1: Property -->
+    <div class="form-group">
+        <label for="property_id">Property <span style="color:var(--error);">*</span></label>
+        <select id="property_id" name="property_id"
+                onchange="this.form.submit()">
+            <option value="">— Select property —</option>
+            {% for prop in properties %}
+            <option value="{{ prop.id }}"
+                {% if selected_property_id and selected_property_id|int == prop.id %}
+                    selected{% endif %}>
+                {{ prop.property_ref or prop.address_line1 }} — {{ prop.address_line1 }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Step 2: Tenant (only shown after property selected) -->
+    {% if active_contracts %}
+    <div class="form-group">
+        <label for="contract_id">Tenant <span style="color:var(--error);">*</span></label>
+        <select id="contract_id" name="contract_id" required>
+            <option value="">— Select tenant —</option>
+            {% for contract in active_contracts %}
+            <option value="{{ contract.id }}">
+                {{ contract.tenant.full_name }} — {{ contract.room.room_name }}
+                (£{{ '%.2f'|format(contract.monthly_rent) }}/month)
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    {% elif selected_property_id %}
+    <div class="alert alert-warning">No active tenants in this property.</div>
+    {% endif %}
+
+    {% if active_contracts %}
+
+    <!-- Billing period -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+            <label for="period_start">Period Start <span style="color:var(--error);">*</span></label>
+            <input type="date" id="period_start" name="period_start"
+                   value="{{ request.form.get('period_start','') }}" required>
+        </div>
+        <div class="form-group">
+            <label for="period_end">Period End <span style="color:var(--error);">*</span></label>
+            <input type="date" id="period_end" name="period_end"
+                   value="{{ request.form.get('period_end','') }}" required>
+        </div>
+    </div>
+
+    <!-- Issue and due dates -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+            <label for="issue_date">Issue Date <span style="color:var(--error);">*</span></label>
+            <input type="date" id="issue_date" name="issue_date"
+                   value="{{ request.form.get('issue_date', date.today().isoformat()) }}" required>
+        </div>
+        <div class="form-group">
+            <label for="due_date">Due Date <span style="color:var(--error);">*</span></label>
+            <input type="date" id="due_date" name="due_date"
+                   value="{{ request.form.get('due_date','') }}" required>
+            <span class="form-hint">Usually the tenant's rent due date.</span>
+        </div>
+    </div>
+
+    <!-- What to include -->
+    <div class="card" style="margin-bottom:20px;">
+        <div class="card-title">Include on Invoice</div>
+
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+            <input type="checkbox" id="include_rent" name="include_rent"
+                   style="width:auto;"
+                   {% if request.form.get('include_rent','on') == 'on' %}checked{% endif %}>
+            <label for="include_rent" style="font-weight:normal; margin:0;">
+                Monthly Rent
+            </label>
+        </div>
+
+        <div class="form-group" style="margin-left:26px; margin-bottom:16px;">
+            <label for="rent_override" style="font-size:13px;">
+                Override rent amount (£) — leave blank to use contract amount
+            </label>
+            <input type="number" id="rent_override" name="rent_override"
+                   step="0.01" min="0"
+                   value="{{ request.form.get('rent_override','') }}"
+                   style="max-width:160px;">
+        </div>
+
+        <div style="display:flex; align-items:center; gap:10px;">
+            <input type="checkbox" id="include_bills" name="include_bills"
+                   style="width:auto;"
+                   {% if request.form.get('include_bills','on') == 'on' %}checked{% endif %}>
+            <label for="include_bills" style="font-weight:normal; margin:0;">
+                Uninvoiced Bill Shares (gas, electricity, council tax)
+            </label>
+        </div>
+        <p style="font-size:13px; color:var(--text-secondary); margin:6px 0 0 26px;">
+            Only bill shares not yet on a previous invoice will be included.
+        </p>
+    </div>
+
+    <div class="mt-2">
+        <button type="submit" class="btn btn-primary">Generate Invoice</button>
+        <a href="{{ url_for('invoices.index') }}"
+           class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+    </div>
+
+    {% endif %}
+
+</div>
+</form>
+{% endblock %}

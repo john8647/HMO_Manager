@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Bills — {{ prop.address_line1 }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Bills — {{ prop.property_ref or prop.address_line1 }}</h1>
+    <div style="display:flex; gap:8px;">
+        <a href="{{ url_for('bills.add') }}" class="btn btn-primary">+ Enter Bill</a>
+        <a href="{{ url_for('bills.index') }}" class="btn btn-secondary">&larr; All Bills</a>
+    </div>
+</div>
+
+<p class="text-muted">{{ prop.address_line1 }}{% if prop.address_line2 %}, {{ prop.address_line2 }}{% endif %}, {{ prop.postcode }}</p>
+
+{% if bills %}
+<table style="margin-top: 20px;">
+    <thead>
+        <tr>
+            <th>Type</th>
+            <th>Period</th>
+            <th>Days</th>
+            <th>Total</th>
+            <th>Tenants</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% set last_month = namespace(val='') %}
+        {% for bill in bills %}
+        {% set month = bill.period_end.strftime('%B %Y') %}
+        {% if month != last_month.val %}
+        <tr style="background: var(--green-light);">
+            <td colspan="6" style="font-weight:700; font-size:13px;
+                                    color:var(--green-dark); padding: 6px 14px;">
+                {{ month }}
+            </td>
+        </tr>
+        {% set last_month.val = month %}
+        {% endif %}
+        <tr>
+            <td>
+                {% if bill.bill_type == 'gas' %}
+                    <span class="badge badge-yellow">Gas</span>
+                {% elif bill.bill_type == 'electric' %}
+                    <span class="badge badge-yellow">Electric</span>
+                {% elif bill.bill_type == 'council_tax' %}
+                    <span class="badge badge-green">Council Tax</span>
+                {% else %}
+                    {{ bill.bill_type }}
+                {% endif %}
+            </td>
+            <td>
+                {{ bill.period_start.strftime('%d %b %Y') }}
+                &rarr; {{ bill.period_end.strftime('%d %b %Y') }}
+            </td>
+            <td>{{ bill.days_in_period }}</td>
+            <td><strong>£{{ '%.2f'|format(bill.amount) }}</strong></td>
+            <td>{{ bill.shares.count() }}</td>
+            <td>
+                <a href="{{ url_for('bills.view', bill_id=bill.id) }}"
+                   class="btn btn-secondary btn-sm">View Shares</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card" style="max-width:500px; margin-top:20px;">
+    <div class="card-title">No bills for this property yet</div>
+    <p style="margin:8px 0 16px;">Enter your first bill to calculate tenant shares.</p>
+    <a href="{{ url_for('bills.add') }}" class="btn btn-primary">+ Enter Bill</a>
+</div>
+{% endif %}
+{% endblock %}

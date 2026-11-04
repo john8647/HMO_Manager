@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}{{ invoice.invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>{{ invoice.invoice_number }}</h1>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="{{ url_for('invoices.pdf', invoice_id=invoice.id) }}"
+           class="btn btn-primary">&#8595; Download PDF</a>
+        <a href="{{ url_for('invoices.index') }}"
+           class="btn btn-secondary">&larr; All Invoices</a>
+    </div>
+</div>
+
+<!-- Status bar -->
+<div style="margin-bottom:24px; display:flex; align-items:center; gap:16px;">
+    {% if invoice.status == 'paid' %}
+        <span class="badge badge-green" style="font-size:14px; padding:4px 14px;">Paid</span>
+    {% elif invoice.status == 'overdue' %}
+        <span class="badge badge-red" style="font-size:14px; padding:4px 14px;">Overdue</span>
+    {% elif invoice.status == 'issued' %}
+        <span class="badge badge-yellow" style="font-size:14px; padding:4px 14px;">Issued</span>
+    {% else %}
+        <span class="badge badge-grey" style="font-size:14px; padding:4px 14px;">Draft</span>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('invoices.update_status', invoice_id=invoice.id) }}"
+          style="display:flex; gap:8px; align-items:center;">
+        <select name="status" style="max-width:160px;">
+            <option value="draft"   {% if invoice.status=='draft'   %}selected{% endif %}>Draft</option>
+            <option value="issued"  {% if invoice.status=='issued'  %}selected{% endif %}>Issued</option>
+            <option value="paid"    {% if invoice.status=='paid'    %}selected{% endif %}>Paid</option>
+            <option value="overdue" {% if invoice.status=='overdue' %}selected{% endif %}>Overdue</option>
+        </select>
+        <button type="submit" class="btn btn-secondary btn-sm">Update Status</button>
+    </form>
+</div>
+
+<!-- Invoice header info -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:28px;">
+    <div class="card">
+        <div class="card-title">Invoice To</div>
+        <p style="margin:0;">
+            <strong>{{ invoice.tenant.full_name }}</strong><br>
+            {{ invoice.property.address_line1 }}<br>
+            {% if invoice.property.address_line2 %}{{ invoice.property.address_line2 }}<br>{% endif %}
+            {{ invoice.property.city or '' }} {{ invoice.property.postcode }}
+        </p>
+    </div>
+    <div class="card">
+        <div class="card-title">Invoice Details</div>
+        <table style="margin:0;">
+            <tr><td style="color:var(--text-secondary);width:120px;">Invoice No.</td>
+                <td><strong>{{ invoice.invoice_number }}</strong></td></tr>
+            <tr><td style="color:var(--text-secondary);">Issue Date</td>
+                <td>{{ invoice.issue_date.strftime('%d %b %Y') if invoice.issue_date else '—' }}</td></tr>
+            <tr><td style="color:var(--text-secondary);">Due Date</td>
+                <td><strong>{{ invoice.due_date.strftime('%d %b %Y') if invoice.due_date else '—' }}</strong></td></tr>
+            <tr><td style="color:var(--text-secondary);">Period</td>
+                <td>
+                    {{ invoice.period_start.strftime('%d %b %Y') if invoice.period_start else '—' }}
+                    to {{ invoice.period_end.strftime('%d %b %Y') if invoice.period_end else '—' }}
+                </td></tr>
+        </table>
+    </div>
+</div>
+
+<!-- Line items -->
+<h2>Invoice Items</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Description</th>
+            <th class="text-right" style="width:140px;">Amount</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in items %}
+        <tr>
+            <td>{{ item.description }}</td>
+            <td class="text-right">£{{ '%.2f'|format(item.amount) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td class="text-right" style="color:var(--text-secondary);">Subtotal</td>
+            <td class="text-right">£{{ '%.2f'|format(invoice.subtotal) }}</td>
+        </tr>
+        {% if invoice.arrears_carried_forward and invoice.arrears_carried_forward > 0 %}
+        <tr>
+            <td class="text-right" style="color:var(--error);">Arrears Carried Forward</td>
+            <td class="text-right" style="color:var(--error);">
+                £{{ '%.2f'|format(invoice.arrears_carried_forward) }}
+            </td>
+        </tr>
+        {% endif %}
+        <tr style="border-top:2px solid var(--green-primary);">
+            <td class="text-right"><strong>Total Due</strong></td>
+            <td class="text-right">
+                <strong style="font-size:20px;">£{{ '%.2f'|format(invoice.total_due) }}</strong>
+            </td>
+        </tr>
+    </tfoot>
+</table>
+
+<!-- Add one-off charge -->
+<div style="margin-top:28px;">
+    <h2>Add One-Off Charge</h2>
+    <p class="text-muted" style="font-size:14px;">
+        Add a repair, key replacement, or any other charge to this invoice.
+    </p>
+    <form method="POST"
+          action="{{ url_for('invoices.add_item', invoice_id=invoice.id) }}"
+          style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+        <div class="form-group" style="margin:0; flex:1; min-width:200px;">
+            <label for="description">Description</label>
+            <input type="text" id="description" name="description"
+                   placeholder="e.g. Key replacement charge">
+        </div>
+        <div class="form-group" style="margin:0; width:140px;">
+            <label for="amount">Amount (£)</label>
+            <input type="number" id="amount" name="amount"
+                   step="0.01" min="0.01">
+        </div>
+        <button type="submit" class="btn btn-secondary">Add Charge</button>
+    </form>
+</div>
+
+<!-- Delete -->
+<div style="margin-top:40px; border-top:1px solid var(--border); padding-top:20px;">
+    <form method="POST" action="{{ url_for('invoices.delete', invoice_id=invoice.id) }}"
+          onsubmit="return confirm('Delete invoice {{ invoice.invoice_number }}? Bill shares will be released for re-invoicing.');">
+        <button type="submit" class="btn btn-danger btn-sm">Delete Invoice</button>
+    </form>
+</div>
+
+{% endblock %}

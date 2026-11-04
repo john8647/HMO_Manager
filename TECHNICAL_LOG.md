@@ -591,4 +591,87 @@ Two paths:
 
 ---
 
+### [04/11/2026] — SETUP — Project moved and UV resynced
+- Project moved from `LandlordApp/` to `Prototype/HMO_Manager/` for naming consistency
+- Moving the folder broke UV's internal path references (trampoline error)
+- Fix: delete `.venv` and run `uv sync` in the new location to rebuild the virtual environment
+- Lesson: always resync UV after moving a project folder
+
+### [04/11/2026] — FEATURE — Properties & Rooms module built and working
+- `app/properties/routes.py` — full CRUD for properties and rooms
+- Routes: list, add, view, edit, delete for properties; add, edit, delete for rooms
+- Property view shows room occupancy status and links to active tenant
+- Room deletion blocked if occupied; property deletion blocked if rooms exist
+- Templates: `index.html`, `view.html`, `add.html`, `edit.html`, `add_room.html`, `edit_room.html`
+- Landlord scoping: each landlord sees only their own properties via `user_id` filter
+- Admin role sees all properties across all landlords
+- Real data entered: 4 HMO properties and rooms added successfully
+
+### [04/11/2026] — FEATURE — Tenants module built and working
+- `app/tenants/routes.py` — full tenant lifecycle management
+- Routes: list (active/inactive toggle), add, view, edit, deactivate, reactivate
+- Contract routes: add_contract, end_contract
+- Tenant add flow redirects straight to contract creation after saving
+- Contract creation: selects property → loads vacant rooms only
+- Activating a contract marks room as occupied; ending marks room as vacant
+- Multiple contracts per tenant supported (renewal history preserved)
+- GDPR consent checkbox required on add — records consent date
+- Fields tracked: personal details, student status, Right to Rent ref, council tax refs,
+  council notification dates, home address, invoice account number
+- Known issue noted: property dropdown in add_contract triggers form submit via
+  `onchange` which fires validation errors for required fields — to be fixed in polish pass
+- Templates: `index.html`, `view.html`, `add.html`, `edit.html`, `add_contract.html`
+
+### [04/11/2026] — FEATURE — Bills module built and working
+- `app/bills/routes.py` — shared bill entry and pro-rata calculation
+- Routes: index, add, view (shares), by_property, delete
+- Bill types supported: gas, electric, council_tax
+- On bill save: finds all contracts overlapping billing period (active + ended within period)
+- Calls `app/bills/calculator.py` → `calculate_shares()` for pro-rata split
+- Pro-rata formula: inclusive day count, proportional to days present per tenant
+- Last tenant absorbs any rounding difference to ensure total matches exactly
+- `BillTenantShare` rows created automatically — one per tenant per bill
+- Share view shows progress bar of % presence and amount per tenant
+- Bills grouped by month on the by_property page
+- Future work noted: council tax discount/landlord absorption for empty rooms during
+  invoice generation — to be implemented in invoice module polish pass
+
+### [04/11/2026] — FEATURE — Invoices module built and working
+- `app/invoices/routes.py` — invoice generation, viewing, PDF download
+- Routes: index, generate, view, update_status, add_item, delete, pdf
+- Invoice numbering: sequential `INV-YYYY-NNNN` per landlord per year
+- Generate flow: select property → active tenants load → choose period, dates, what to include
+- Rent line item: uses contract amount or manual override
+- Bill shares: pulls uninvoiced `BillTenantShare` rows for the period automatically
+  and marks them as invoiced (`invoice_item_id` set) to prevent double-invoicing
+- Arrears carried forward from tenant `rent_balance` + `bill_balance`
+- One-off charges can be added to any invoice after generation
+- Invoice statuses: draft → issued → paid → overdue (manually updated)
+- Deleting an invoice releases bill shares back for re-invoicing
+- Templates: `index.html`, `generate.html`, `view.html`, `pdf_template.html`
+- `picklist_charges` seeded via one-off Python command (20 charge types with HMRC categories)
+
+### [04/11/2026] — BUG — Invoice index error: Invoice has no attribute 'property'
+- `Invoice` model was missing a SQLAlchemy relationship to `Property`
+- Fix: added `property = db.relationship('Property', backref='invoices')` to `Invoice` model
+- Note: attempted to add similar relationship to `Transaction` model — caused conflict,
+  removed. Transaction→Property relationship to be handled via join in queries instead
+
+### [04/11/2026] — BUG — generate.html: 'date' is undefined on GET request
+- `date` object from Python `datetime` was only passed to template on POST path
+- Fix: added `date=date` to all `render_template` calls in the `generate` route
+  including GET, error paths, and the property-dropdown reload path
+
+### [04/11/2026] — REFACTOR — PDF library switched from WeasyPrint to xhtml2pdf
+- WeasyPrint requires GTK system libraries which are not available on Windows by default
+- Error: `cannot load library 'libgobject-2.0-0': error 0x7e`
+- Decision: replaced WeasyPrint with xhtml2pdf (pure Python, no system dependencies)
+- Installed via: `uv add xhtml2pdf`
+- Updated `pyproject.toml`: removed `weasyprint>=62.0`, added `xhtml2pdf>=0.2.11`
+- PDF generation now working on Windows
+- Known cosmetic issue: invoice details table text sizing inconsistent in PDF output
+  — CSS tweak deferred to polish pass
+
+---
+
 *Add new entries above this line as development progresses.*

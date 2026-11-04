@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Enter Bill{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Enter Bill</h1>
+    <a href="{{ url_for('bills.index') }}" class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<p class="text-muted">
+    Shared bills (gas, electricity, council tax) are automatically split
+    between tenants proportionally by the number of days they were present
+    during the billing period.
+</p>
+
+<div style="max-width: 560px; margin-top: 20px;">
+<form method="POST" action="{{ url_for('bills.add') }}">
+
+    <div class="form-group">
+        <label for="property_id">Property <span style="color:var(--error);">*</span></label>
+        <select id="property_id" name="property_id" required>
+            <option value="">— Select property —</option>
+            {% for prop in properties %}
+            <option value="{{ prop.id }}"
+                {% if request.form.get('property_id')|int == prop.id %}selected{% endif %}>
+                {{ prop.property_ref or '' }} — {{ prop.address_line1 }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="bill_type">Bill Type <span style="color:var(--error);">*</span></label>
+        <select id="bill_type" name="bill_type" required>
+            <option value="">— Select type —</option>
+            <option value="gas"
+                {% if request.form.get('bill_type') == 'gas' %}selected{% endif %}>
+                Gas
+            </option>
+            <option value="electric"
+                {% if request.form.get('bill_type') == 'electric' %}selected{% endif %}>
+                Electricity
+            </option>
+            <option value="council_tax"
+                {% if request.form.get('bill_type') == 'council_tax' %}selected{% endif %}>
+                Council Tax
+            </option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="amount">Total Bill Amount (£) <span style="color:var(--error);">*</span></label>
+        <input type="number" id="amount" name="amount"
+               step="0.01" min="0.01"
+               value="{{ request.form.get('amount', '') }}"
+               style="max-width: 200px;" required>
+        <span class="form-hint">Enter the full bill amount — the system will split it.</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="form-group">
+            <label for="period_start">Period Start <span style="color:var(--error);">*</span></label>
+            <input type="date" id="period_start" name="period_start"
+                   value="{{ request.form.get('period_start', '') }}" required>
+        </div>
+        <div class="form-group">
+            <label for="period_end">Period End <span style="color:var(--error);">*</span></label>
+            <input type="date" id="period_end" name="period_end"
+                   value="{{ request.form.get('period_end', '') }}" required>
+        </div>
+    </div>
+
+    <div class="card" style="margin: 8px 0 20px; padding: 12px 16px; font-size: 14px;">
+        <strong>How days are counted:</strong> inclusive of both start and end date.
+        For example, 01 Jul → 31 Jul = 31 days. Each tenant is charged for the
+        exact number of days their contract overlapped this period.
+    </div>
+
+    <div class="form-group">
+        <label for="notes">Notes</label>
+        <input type="text" id="notes" name="notes"
+               value="{{ request.form.get('notes', '') }}"
+               placeholder="e.g. British Gas invoice ref 12345">
+    </div>
+
+    <div class="mt-2">
+        <button type="submit" class="btn btn-primary">Save &amp; Calculate Shares</button>
+        <a href="{{ url_for('bills.index') }}"
+           class="btn btn-secondary" style="margin-left: 8px;">Cancel</a>
+    </div>
+
+</form>
+</div>
+{% endblock %}

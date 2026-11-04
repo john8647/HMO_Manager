@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Edit Room — {{ prop.address_line1 }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Edit Room</h1>
+    <a href="{{ url_for('properties.view', property_id=prop.id) }}"
+       class="btn btn-secondary">&larr; Back to {{ prop.address_line1 }}</a>
+</div>
+
+<p class="text-muted">Property: <strong>{{ prop.address_line1 }}, {{ prop.postcode }}</strong></p>
+
+<div style="max-width: 400px; margin-top: 16px;">
+    <form method="POST"
+          action="{{ url_for('properties.edit_room', property_id=prop.id, room_id=room.id) }}">
+
+        <div class="form-group">
+            <label for="room_name">Room Name <span style="color:var(--error);">*</span></label>
+            <input type="text" id="room_name" name="room_name"
+                   value="{{ room.room_name }}" required autofocus>
+        </div>
+
+        <div class="mt-2">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="{{ url_for('properties.view', property_id=prop.id) }}"
+               class="btn btn-secondary" style="margin-left: 8px;">Cancel</a>
+        </div>
+
+    </form>
+</div>
+{% endblock %}

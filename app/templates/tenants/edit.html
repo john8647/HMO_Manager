@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Edit — {{ tenant.full_name }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Edit Tenant</h1>
+    <a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}"
+       class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<form method="POST" action="{{ url_for('tenants.edit', tenant_id=tenant.id) }}">
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; max-width: 860px;">
+
+    <div>
+        <h2>Personal Details</h2>
+
+        <div class="form-group">
+            <label for="first_name">First Name <span style="color:var(--error);">*</span></label>
+            <input type="text" id="first_name" name="first_name"
+                   value="{{ tenant.first_name }}" required autofocus>
+        </div>
+
+        <div class="form-group">
+            <label for="last_name">Last Name <span style="color:var(--error);">*</span></label>
+            <input type="text" id="last_name" name="last_name"
+                   value="{{ tenant.last_name }}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email"
+                   value="{{ tenant.email or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="phone">Phone</label>
+            <input type="text" id="phone" name="phone"
+                   value="{{ tenant.phone or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="date_of_birth">Date of Birth</label>
+            <input type="date" id="date_of_birth" name="date_of_birth"
+                   value="{{ tenant.date_of_birth.isoformat() if tenant.date_of_birth else '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="nationality">Nationality</label>
+            <input type="text" id="nationality" name="nationality"
+                   value="{{ tenant.nationality or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="home_address">Home Address</label>
+            <textarea id="home_address" name="home_address"
+                      rows="3">{{ tenant.home_address or '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="home_country">Home Country</label>
+            <input type="text" id="home_country" name="home_country"
+                   value="{{ tenant.home_country or '' }}">
+        </div>
+    </div>
+
+    <div>
+        <h2>Student &amp; Compliance</h2>
+
+        <div class="form-group">
+            <label for="student_status">Student Status</label>
+            <select id="student_status" name="student_status">
+                <option value="Non-student"
+                    {% if tenant.student_status == 'Non-student' %}selected{% endif %}>
+                    Non-student</option>
+                <option value="Student"
+                    {% if tenant.student_status == 'Student' %}selected{% endif %}>
+                    Student</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="student_id">Student ID Number</label>
+            <input type="text" id="student_id" name="student_id"
+                   value="{{ tenant.student_id or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="university">University / School</label>
+            <input type="text" id="university" name="university"
+                   value="{{ tenant.university or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="course_title">Course Title</label>
+            <input type="text" id="course_title" name="course_title"
+                   value="{{ tenant.course_title or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="right_to_rent_ref">Right to Rent Reference</label>
+            <input type="text" id="right_to_rent_ref" name="right_to_rent_ref"
+                   value="{{ tenant.right_to_rent_ref or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="council_tax_ref">Council Tax Submission Ref</label>
+            <input type="text" id="council_tax_ref" name="council_tax_ref"
+                   value="{{ tenant.council_tax_ref or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="council_tax_number">Council Tax Number</label>
+            <input type="text" id="council_tax_number" name="council_tax_number"
+                   value="{{ tenant.council_tax_number or '' }}">
+        </div>
+
+        <h2>Council Notifications</h2>
+
+        <div class="form-group">
+            <label for="council_informed_in">Council Informed — Move In</label>
+            <input type="date" id="council_informed_in" name="council_informed_in"
+                   value="{{ tenant.council_informed_in.isoformat() if tenant.council_informed_in else '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="council_informed_left">Council Informed — Move Out</label>
+            <input type="date" id="council_informed_left" name="council_informed_left"
+                   value="{{ tenant.council_informed_left.isoformat() if tenant.council_informed_left else '' }}">
+        </div>
+    </div>
+
+</div>
+
+<div class="mt-3">
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+    <a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}"
+       class="btn btn-secondary" style="margin-left: 8px;">Cancel</a>
+</div>
+
+</form>
+{% endblock %}

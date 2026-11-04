@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Bills{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Bills</h1>
+    <a href="{{ url_for('bills.add') }}" class="btn btn-primary">+ Enter Bill</a>
+</div>
+
+<!-- Property quick links -->
+<h2>Properties</h2>
+<div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 28px;">
+    {% for prop in properties %}
+    <a href="{{ url_for('bills.by_property', property_id=prop.id) }}"
+       class="btn btn-secondary">
+        {{ prop.property_ref or prop.address_line1 }}
+    </a>
+    {% endfor %}
+</div>
+
+<!-- Recent bills -->
+<h2>Recent Bills</h2>
+{% if recent_bills %}
+<table>
+    <thead>
+        <tr>
+            <th>Property</th>
+            <th>Type</th>
+            <th>Period</th>
+            <th>Days</th>
+            <th>Total Amount</th>
+            <th>Tenants Charged</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for bill in recent_bills %}
+        <tr>
+            <td>{{ bill.property.property_ref or bill.property.address_line1 }}</td>
+            <td>
+                {% if bill.bill_type == 'gas' %}
+                    <span class="badge badge-yellow">Gas</span>
+                {% elif bill.bill_type == 'electric' %}
+                    <span class="badge badge-yellow">Electric</span>
+                {% elif bill.bill_type == 'council_tax' %}
+                    <span class="badge badge-green">Council Tax</span>
+                {% else %}
+                    <span class="badge badge-grey">{{ bill.bill_type }}</span>
+                {% endif %}
+            </td>
+            <td>
+                {{ bill.period_start.strftime('%d %b %Y') }}
+                &rarr; {{ bill.period_end.strftime('%d %b %Y') }}
+            </td>
+            <td>{{ bill.days_in_period }}</td>
+            <td><strong>£{{ '%.2f'|format(bill.amount) }}</strong></td>
+            <td>{{ bill.shares.count() }}</td>
+            <td>
+                <a href="{{ url_for('bills.view', bill_id=bill.id) }}"
+                   class="btn btn-secondary btn-sm">View Shares</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card" style="max-width: 500px;">
+    <div class="card-title">No bills entered yet</div>
+    <p style="margin: 8px 0 16px;">Enter your first gas, electricity or council tax bill
+    to automatically calculate tenant shares.</p>
+    <a href="{{ url_for('bills.add') }}" class="btn btn-primary">+ Enter Bill</a>
+</div>
+{% endif %}
+{% endblock %}

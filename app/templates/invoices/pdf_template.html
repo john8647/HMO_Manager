@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+    @page {
+        size: A4;
+        margin: 20mm 20mm 25mm 20mm;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        font-family: Arial, sans-serif;
+        font-size: 11pt;
+        color: #0b0c0c;
+        line-height: 1.5;
+    }
+    /* Header */
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-bottom: 4px solid #00703c;
+        padding-bottom: 16px;
+        margin-bottom: 24px;
+    }
+    .business-name {
+        font-size: 20pt;
+        font-weight: bold;
+        color: #00703c;
+    }
+    .invoice-label {
+        font-size: 22pt;
+        font-weight: bold;
+        color: #0b0c0c;
+        text-align: right;
+    }
+    .invoice-number {
+        font-size: 11pt;
+        color: #505a5f;
+        text-align: right;
+    }
+    /* Addresses */
+    .addresses {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 28px;
+    }
+    .address-block { width: 48%; }
+    .address-block h3 {
+        font-size: 9pt;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #505a5f;
+        margin-bottom: 6px;
+    }
+    /* Invoice meta */
+    .meta-table {
+        width: 100%;
+        margin-bottom: 28px;
+        border-collapse: collapse;
+    }
+    .meta-table td {
+        padding: 4px 8px 4px 0;
+        font-size: 10pt;
+    }
+    .meta-table .label { color: #505a5f; width: 140px; }
+    .meta-table .value { font-weight: bold; }
+    /* Line items table */
+    .items-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 0;
+    }
+    .items-table thead th {
+        background: #00703c;
+        color: white;
+        padding: 8px 12px;
+        text-align: left;
+        font-size: 10pt;
+    }
+    .items-table thead th.right { text-align: right; }
+    .items-table tbody td {
+        padding: 7px 12px;
+        font-size: 10pt;
+        border-bottom: 1px solid #d8d8d8;
+        vertical-align: top;
+    }
+    .items-table tbody td.right { text-align: right; }
+    .items-table tbody tr:nth-child(even) { background: #f3f2f1; }
+    /* Totals */
+    .totals-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 0;
+    }
+    .totals-table td {
+        padding: 6px 12px;
+        font-size: 10pt;
+    }
+    .totals-table .label { color: #505a5f; text-align: right; }
+    .totals-table .amount { text-align: right; width: 120px; }
+    .totals-table .total-row td {
+        border-top: 2px solid #00703c;
+        font-size: 13pt;
+        font-weight: bold;
+        padding-top: 10px;
+    }
+    .arrears { color: #d4351c; }
+    /* Payment instructions */
+    .payment-box {
+        margin-top: 32px;
+        border: 1px solid #b1b4b6;
+        border-left: 4px solid #00703c;
+        padding: 14px 16px;
+        background: #f8faf9;
+    }
+    .payment-box h3 {
+        font-size: 10pt;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #00703c;
+        margin-bottom: 8px;
+    }
+    .payment-box p { font-size: 10pt; color: #505a5f; margin-bottom: 4px; }
+    /* Footer */
+    .footer {
+        position: fixed;
+        bottom: 0;
+        left: 0; right: 0;
+        font-size: 8pt;
+        color: #b1b4b6;
+        text-align: center;
+        border-top: 1px solid #d8d8d8;
+        padding-top: 6px;
+    }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <div>
+        <div class="business-name">HMO Properties</div>
+        {% if landlord %}
+        <div style="font-size:10pt; color:#505a5f; margin-top:4px;">
+            {{ landlord.email }}
+        </div>
+        {% endif %}
+    </div>
+    <div>
+        <div class="invoice-label">INVOICE</div>
+        <div class="invoice-number">{{ invoice.invoice_number }}</div>
+    </div>
+</div>
+
+<!-- Addresses -->
+<div class="addresses">
+    <div class="address-block">
+        <h3>Invoice To</h3>
+        <strong>{{ invoice.tenant.full_name }}</strong><br>
+        {{ invoice.property.address_line1 }}<br>
+        {% if invoice.property.address_line2 %}
+            {{ invoice.property.address_line2 }}<br>
+        {% endif %}
+        {% if invoice.property.city %}{{ invoice.property.city }}<br>{% endif %}
+        {{ invoice.property.postcode }}
+    </div>
+    <div class="address-block" style="text-align:right;">
+        <h3>Invoice Details</h3>
+        <table class="meta-table" style="margin-left:auto; width:auto;">
+            <tr>
+                <td class="label">Invoice No.</td>
+                <td class="value">{{ invoice.invoice_number }}</td>
+            </tr>
+            <tr>
+                <td class="label">Issue Date</td>
+                <td class="value">
+                    {{ invoice.issue_date.strftime('%d %B %Y') if invoice.issue_date else '—' }}
+                </td>
+            </tr>
+            <tr>
+                <td class="label">Due Date</td>
+                <td class="value" style="color:#d4351c;">
+                    {{ invoice.due_date.strftime('%d %B %Y') if invoice.due_date else '—' }}
+                </td>
+            </tr>
+            <tr>
+                <td class="label">Billing Period</td>
+                <td class="value">
+                    {{ invoice.period_start.strftime('%d %b %Y') if invoice.period_start else '—' }}
+                    to
+                    {{ invoice.period_end.strftime('%d %b %Y') if invoice.period_end else '—' }}
+                </td>
+            </tr>
+            <tr>
+                <td class="label">Account Ref</td>
+                <td class="value">{{ invoice.tenant.invoice_account_number or '—' }}</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<!-- Line items -->
+<table class="items-table">
+    <thead>
+        <tr>
+            <th>Description</th>
+            <th class="right" style="width:120px;">Amount</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in items %}
+        <tr>
+            <td>{{ item.description }}</td>
+            <td class="right">£{{ '%.2f'|format(item.amount) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Totals -->
+<table class="totals-table">
+    <tr>
+        <td class="label">Subtotal</td>
+        <td class="amount">£{{ '%.2f'|format(invoice.subtotal) }}</td>
+    </tr>
+    {% if invoice.arrears_carried_forward and invoice.arrears_carried_forward > 0 %}
+    <tr>
+        <td class="label arrears">Arrears Carried Forward</td>
+        <td class="amount arrears">£{{ '%.2f'|format(invoice.arrears_carried_forward) }}</td>
+    </tr>
+    {% endif %}
+    <tr class="total-row">
+        <td class="label">Total Due</td>
+        <td class="amount">£{{ '%.2f'|format(invoice.total_due) }}</td>
+    </tr>
+</table>
+
+<!-- Payment instructions -->
+<div class="payment-box">
+    <h3>Payment Instructions</h3>
+    <p>Please make payment by bank transfer to the account below, quoting your
+    account reference <strong>{{ invoice.tenant.invoice_account_number }}</strong>.</p>
+    <p><strong>Reference to use:</strong> {{ invoice.tenant.last_name|upper }}
+    {{ invoice.invoice_number }}</p>
+    <p style="margin-top:8px; font-size:9pt; color:#505a5f;">
+        Payment is due by {{ invoice.due_date.strftime('%d %B %Y') if invoice.due_date else 'the date shown above' }}.
+        Late payment may result in a late payment charge.
+        If you have any queries about this invoice please contact your landlord.
+    </p>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+    {{ invoice.invoice_number }} &mdash;
+    {{ invoice.tenant.full_name }} &mdash;
+    {{ invoice.property.address_line1 }}, {{ invoice.property.postcode }} &mdash;
+    Personal data processed under GDPR Article 6(1)(b)
+</div>
+
+</body>
+</html>

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{{ prop.address_line1 }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>{{ prop.address_line1 }}</h1>
+    <div style="display:flex; gap:8px;">
+        <a href="{{ url_for('properties.add_room', property_id=prop.id) }}"
+           class="btn btn-primary">+ Add Room</a>
+        <a href="{{ url_for('properties.edit', property_id=prop.id) }}"
+           class="btn btn-secondary">Edit Property</a>
+        <a href="{{ url_for('properties.index') }}"
+           class="btn btn-secondary">&larr; All Properties</a>
+    </div>
+</div>
+
+<!-- Property details card -->
+<div class="card" style="max-width: 520px; margin-bottom: 28px;">
+    <div class="card-title">Property Details</div>
+    <table style="margin:0;">
+        <tbody>
+            <tr>
+                <td style="width:140px; color:var(--text-secondary);">Reference</td>
+                <td><strong>{{ prop.property_ref or '—' }}</strong></td>
+            </tr>
+            <tr>
+                <td style="color:var(--text-secondary);">Address</td>
+                <td>
+                    {{ prop.address_line1 }}<br>
+                    {% if prop.address_line2 %}{{ prop.address_line2 }}<br>{% endif %}
+                    {% if prop.city %}{{ prop.city }}<br>{% endif %}
+                    {{ prop.postcode }}
+                </td>
+            </tr>
+            <tr>
+                <td style="color:var(--text-secondary);">Total Rooms</td>
+                <td>{{ rooms|length }}</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Rooms -->
+<h2>Rooms</h2>
+
+{% if rooms %}
+<table>
+    <thead>
+        <tr>
+            <th>Room</th>
+            <th>Status</th>
+            <th>Current Tenant</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for room in rooms %}
+        <tr>
+            <td><strong>{{ room.room_name }}</strong></td>
+            <td>
+                {% if room.is_occupied %}
+                    <span class="badge badge-green">Occupied</span>
+                {% else %}
+                    <span class="badge badge-grey">Vacant</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if room.active_tenant %}
+                    <a href="{{ url_for('tenants.view', tenant_id=room.active_tenant.id) }}">
+                        {{ room.active_tenant.full_name }}
+                    </a>
+                {% else %}
+                    <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <td>
+                <a href="{{ url_for('properties.edit_room', property_id=prop.id, room_id=room.id) }}"
+                   class="btn btn-secondary btn-sm">Edit</a>
+                {% if not room.is_occupied %}
+                <form method="POST"
+                      action="{{ url_for('properties.delete_room', property_id=prop.id, room_id=room.id) }}"
+                      style="display:inline;"
+                      onsubmit="return confirm('Delete {{ room.room_name }}?');">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card" style="max-width:400px;">
+    <div class="card-title">No rooms yet</div>
+    <p style="margin: 8px 0 16px;">Add rooms to this property to assign tenants.</p>
+    <a href="{{ url_for('properties.add_room', property_id=prop.id) }}"
+       class="btn btn-primary">+ Add Room</a>
+</div>
+{% endif %}
+
+<!-- Danger zone -->
+{% if rooms|length == 0 %}
+<div style="margin-top: 40px; border-top: 1px solid var(--border); padding-top: 20px;">
+    <h3 style="color: var(--error);">Danger Zone</h3>
+    <form method="POST"
+          action="{{ url_for('properties.delete', property_id=prop.id) }}"
+          onsubmit="return confirm('Permanently delete this property? This cannot be undone.');">
+        <button type="submit" class="btn btn-danger">Delete Property</button>
+    </form>
+</div>
+{% endif %}
+
+{% endblock %}

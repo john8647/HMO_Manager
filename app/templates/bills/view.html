@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Bill — {{ bill.bill_type|title }} {{ bill.period_start.strftime('%d %b') }} to {{ bill.period_end.strftime('%d %b %Y') }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>
+        {{ bill.bill_type|replace('_',' ')|title }}
+        &mdash; {{ bill.period_start.strftime('%d %b') }}
+        to {{ bill.period_end.strftime('%d %b %Y') }}
+    </h1>
+    <div style="display:flex; gap:8px;">
+        <a href="{{ url_for('bills.by_property', property_id=bill.property_id) }}"
+           class="btn btn-secondary">&larr; Property Bills</a>
+        <a href="{{ url_for('bills.add') }}" class="btn btn-primary">+ Enter Bill</a>
+    </div>
+</div>
+
+<!-- Bill summary -->
+<div class="card" style="max-width: 480px; margin-bottom: 28px;">
+    <div class="card-title">Bill Summary</div>
+    <table style="margin:0;">
+        <tr>
+            <td style="color:var(--text-secondary); width:160px;">Property</td>
+            <td><strong>{{ bill.property.address_line1 }}</strong></td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Bill Type</td>
+            <td>{{ bill.bill_type|replace('_',' ')|title }}</td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Period</td>
+            <td>
+                {{ bill.period_start.strftime('%d %b %Y') }}
+                &rarr; {{ bill.period_end.strftime('%d %b %Y') }}
+            </td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Days in Period</td>
+            <td>{{ bill.days_in_period }}</td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Total Amount</td>
+            <td><strong style="font-size:18px;">£{{ '%.2f'|format(bill.amount) }}</strong></td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Date Entered</td>
+            <td>{{ bill.date_entered.strftime('%d %b %Y') if bill.date_entered else '—' }}</td>
+        </tr>
+        {% if bill.notes %}
+        <tr>
+            <td style="color:var(--text-secondary);">Notes</td>
+            <td>{{ bill.notes }}</td>
+        </tr>
+        {% endif %}
+    </table>
+</div>
+
+<!-- Tenant shares breakdown -->
+<h2>Tenant Shares Breakdown</h2>
+
+{% if shares %}
+<table>
+    <thead>
+        <tr>
+            <th>Tenant</th>
+            <th>Days Present</th>
+            <th>Out of {{ bill.days_in_period }} days</th>
+            <th>Share Amount</th>
+            <th>Invoice Item</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% set total_charged = namespace(val=0) %}
+        {% for share in shares %}
+        {% set total_charged.val = total_charged.val + share.share_amount %}
+        <tr>
+            <td>
+                <a href="{{ url_for('tenants.view', tenant_id=share.tenant_id) }}">
+                    {{ share.tenant.full_name if share.tenant else '—' }}
+                </a>
+            </td>
+            <td>{{ share.days_present }}</td>
+            <td>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <div style="background:var(--grey-light); border-radius:4px;
+                                width:120px; height:10px; overflow:hidden;">
+                        <div style="background:var(--green-primary); height:100%;
+                                    width:{{ ((share.days_present / bill.days_in_period) * 100)|round }}%;">
+                        </div>
+                    </div>
+                    <span style="font-size:13px; color:var(--text-secondary);">
+                        {{ ((share.days_present / bill.days_in_period) * 100)|round(1) }}%
+                    </span>
+                </div>
+            </td>
+            <td><strong>£{{ '%.2f'|format(share.share_amount) }}</strong></td>
+            <td>
+                {% if share.invoice_item_id %}
+                    <span class="badge badge-green">On Invoice</span>
+                {% else %}
+                    <span class="badge badge-grey">Pending</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr style="border-top: 2px solid var(--green-primary);">
+            <td><strong>Total</strong></td>
+            <td></td>
+            <td></td>
+            <td><strong>£{{ '%.2f'|format(total_charged.val) }}</strong></td>
+            <td></td>
+        </tr>
+    </tfoot>
+</table>
+
+{% if (bill.amount - total_charged.val)|abs > 0.02 %}
+<div class="alert alert-warning" style="margin-top:12px;">
+    Rounding difference of £{{ '%.2f'|format((bill.amount - total_charged.val)|abs) }}
+    — the last tenant absorbs rounding to ensure the total matches exactly.
+</div>
+{% endif %}
+
+{% else %}
+<div class="alert alert-warning">
+    No tenant shares were calculated for this bill.
+    This may be because no tenants had active contracts during this period.
+</div>
+{% endif %}
+
+<!-- Delete -->
+<div style="margin-top: 40px; border-top: 1px solid var(--border); padding-top: 20px;">
+    <form method="POST" action="{{ url_for('bills.delete', bill_id=bill.id) }}"
+          onsubmit="return confirm('Delete this bill and all its tenant shares?');">
+        <button type="submit" class="btn btn-danger btn-sm">Delete Bill</button>
+    </form>
+</div>
+
+{% endblock %}

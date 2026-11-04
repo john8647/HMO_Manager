@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Edit Property{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Edit Property</h1>
+    <a href="{{ url_for('properties.view', property_id=prop.id) }}"
+       class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<div style="max-width: 520px;">
+    <form method="POST" action="{{ url_for('properties.edit', property_id=prop.id) }}">
+
+        <div class="form-group">
+            <label for="property_ref">Property Reference</label>
+            <input type="text" id="property_ref" name="property_ref"
+                   value="{{ prop.property_ref or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="address_line1">Address Line 1 <span style="color:var(--error);">*</span></label>
+            <input type="text" id="address_line1" name="address_line1"
+                   value="{{ prop.address_line1 }}" required autofocus>
+        </div>
+
+        <div class="form-group">
+            <label for="address_line2">Address Line 2</label>
+            <input type="text" id="address_line2" name="address_line2"
+                   value="{{ prop.address_line2 or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="city">City</label>
+            <input type="text" id="city" name="city"
+                   value="{{ prop.city or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="postcode">Postcode</label>
+            <input type="text" id="postcode" name="postcode"
+                   value="{{ prop.postcode or '' }}"
+                   style="max-width: 160px;">
+        </div>
+
+        <div class="mt-2">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="{{ url_for('properties.view', property_id=prop.id) }}"
+               class="btn btn-secondary" style="margin-left: 8px;">Cancel</a>
+        </div>
+
+    </form>
+</div>
+{% endblock %}
