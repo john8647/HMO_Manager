@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}QuickFile Export{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>QuickFile Export</h1>
+</div>
+
+<p class="text-muted">
+    Export your financial transactions as a CSV file ready to import into QuickFile
+    for your Self Assessment tax return. Each property is exported separately.
+</p>
+
+<!-- Format reminder -->
+<div class="card" style="max-width:700px; margin:20px 0 28px;
+                          border-top-color:var(--green-primary);">
+    <div class="card-title">Export Format</div>
+    <p style="font-size:14px; margin-bottom:10px;">
+        The export matches the QuickFile manual import format exactly:
+    </p>
+    <code style="display:block; background:var(--grey-light); padding:10px 14px;
+                 font-size:12px; border-radius:2px; line-height:2.2;">
+        Transaction Date, Transaction Type, Sort Code, Account Number,
+        Transaction Description, Debit Amount, Credit Amount
+    </code>
+    <p style="font-size:13px; margin-top:12px; color:var(--text-secondary);">
+        Each tenant payment is split out by type using your auto-match rules.
+        For example if JIJIN JOSE paid rent and bills in one transfer but you
+        split it during import, the export produces two lines:
+        <em>JIJIN JOSE Rent</em> and <em>JIJIN JOSE Bills</em>.
+    </p>
+    <p style="font-size:13px; margin-top:6px; color:var(--text-secondary);">
+        Expenses for the selected property appear as debit rows with their
+        description as entered.
+    </p>
+</div>
+
+<!-- Export form -->
+<div style="max-width:560px;">
+<form method="GET" action="{{ url_for('reports.quickfile_export') }}">
+
+    <div class="form-group">
+        <label for="property_id">
+            Property <span style="color:var(--error);">*</span>
+        </label>
+        <select id="property_id" name="property_id" required>
+            <option value="">— Select property —</option>
+            {% for prop in properties %}
+            <option value="{{ prop.id }}">
+                {{ prop.property_ref or prop.address_line1 }}
+                — {{ prop.address_line1 }}, {{ prop.postcode }}
+            </option>
+            {% endfor %}
+        </select>
+        <span class="form-hint">
+            Each property is exported as a separate file.
+        </span>
+    </div>
+
+    <div class="form-group">
+        <label for="tax_year">
+            Tax Year <span style="color:var(--error);">*</span>
+        </label>
+        <select id="tax_year" name="tax_year" required>
+            <option value="">— Select tax year —</option>
+            {% for year in tax_years %}
+            <option value="{{ year }}"
+                {% if year == current_year %}selected{% endif %}>
+                {{ year - 1 }} — {{ year }}
+                (6 Apr {{ year - 1 }} to 5 Apr {{ year }})
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+            <label for="sort_code">Sort Code</label>
+            <input type="text" id="sort_code" name="sort_code"
+                   placeholder="e.g. 11-02-12"
+                   value="{{ request.args.get('sort_code','') }}">
+            <span class="form-hint">
+                Your bank sort code — prefixed with ' in the export.
+            </span>
+        </div>
+        <div class="form-group">
+            <label for="account_number">Account Number</label>
+            <input type="text" id="account_number" name="account_number"
+                   placeholder="e.g. 12045867"
+                   value="{{ request.args.get('account_number','') }}">
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px; font-size:14px;">
+        <strong>What is included in the export:</strong>
+        <ul style="margin:8px 0 0 20px; line-height:2.2;">
+            <li>All matched credit transactions (tenant rent and bill payments)</li>
+            <li>All expenses recorded against the selected property</li>
+            <li>All manual debit transactions</li>
+            <li>Filtered to the selected tax year (6 Apr to 5 Apr)</li>
+            <li>Sorted by date ascending</li>
+        </ul>
+        <strong style="display:block; margin-top:10px;">
+            Not included:
+        </strong>
+        <ul style="margin:8px 0 0 20px; line-height:2.2;">
+            <li>Unmatched bank import rows</li>
+            <li>Draft / unconfirmed transactions</li>
+        </ul>
+    </div>
+
+    <div class="mt-2">
+        <button type="submit" class="btn btn-primary">
+            &#8595; Download QuickFile CSV
+        </button>
+        <a href="{{ url_for('dashboard.index') }}"
+           class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+    </div>
+
+</form>
+</div>
+
+<!-- Tax year reference -->
+<div style="margin-top:36px; border-top:1px solid var(--border); padding-top:20px;">
+    <h2>HMRC Self Assessment — Property Income Categories</h2>
+    <p class="text-muted" style="font-size:14px; margin-bottom:16px;">
+        Your expense categories map to these UK Property boxes in QuickFile:
+    </p>
+    <table style="max-width:700px;">
+        <thead>
+            <tr>
+                <th>Charge Type</th>
+                <th>HMRC Box</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>Rent, rates, insurance, ground rents</td>
+                <td>UK Property 26</td></tr>
+            <tr><td>Property Repairs and Maintenance</td>
+                <td>UK Property 27</td></tr>
+            <tr><td>Costs of services provided, including wages</td>
+                <td>UK Property 30</td></tr>
+            <tr><td>Other Allowable property expenses</td>
+                <td>UK Property 31</td></tr>
+            <tr><td>Interest on bank and other loans</td>
+                <td>UK Property 17</td></tr>
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

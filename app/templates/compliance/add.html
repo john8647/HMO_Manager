@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Add Compliance Document{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Add Compliance Document</h1>
+    <a href="{{ url_for('compliance.index') }}"
+       class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<div style="max-width:560px; margin-top:20px;">
+<form method="POST" action="{{ url_for('compliance.add') }}"
+      enctype="multipart/form-data">
+
+    <div class="form-group">
+        <label for="property_id">
+            Property <span style="color:var(--error);">*</span>
+        </label>
+        <select id="property_id" name="property_id" required>
+            <option value="">— Select property —</option>
+            {% for prop in properties %}
+            <option value="{{ prop.id }}"
+                {% set pre = request.args.get('property_id','') %}
+                {% if pre == prop.id|string %}selected{% endif %}>
+                {{ prop.property_ref or prop.address_line1 }}
+                — {{ prop.address_line1 }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="document_type">
+            Document Type <span style="color:var(--error);">*</span>
+        </label>
+        <select id="document_type" name="document_type" required
+                onchange="setRenewal(this.value)">
+            <option value="">— Select type —</option>
+            {% for doc_type, years in document_types %}
+            <option value="{{ doc_type }}" data-years="{{ years }}"
+                {% if request.form.get('document_type') == doc_type %}
+                    selected{% endif %}>
+                {{ doc_type }}
+                (renewed every {{ years }} year{{ 's' if years > 1 else '' }})
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+            <label for="issue_date">Issue Date</label>
+            <input type="date" id="issue_date" name="issue_date"
+                   value="{{ request.form.get('issue_date','') }}"
+                   onchange="calcExpiry()">
+        </div>
+        <div class="form-group">
+            <label for="expiry_date">Expiry Date</label>
+            <input type="date" id="expiry_date" name="expiry_date"
+                   value="{{ request.form.get('expiry_date','') }}">
+            <span class="form-hint">Auto-calculated from issue date if blank.</span>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="renewal_years">Renewal Period (years)</label>
+        <input type="number" id="renewal_years" name="renewal_years"
+               min="1" max="10"
+               value="{{ request.form.get('renewal_years','1') }}"
+               style="max-width:100px;">
+    </div>
+
+    <div class="form-group">
+        <label for="document_file">Upload Document (PDF, JPG, PNG)</label>
+        <input type="file" id="document_file" name="document_file"
+               accept=".pdf,.jpg,.jpeg,.png"
+               style="border:2px solid var(--grey-dark); padding:8px;">
+        <span class="form-hint">Optional — attach the certificate or policy document.</span>
+    </div>
+
+    <div class="form-group">
+        <label for="notes">Notes</label>
+        <input type="text" id="notes" name="notes"
+               value="{{ request.form.get('notes','') }}"
+               placeholder="e.g. Engineer name, certificate number, insurer">
+    </div>
+
+    <div class="mt-2">
+        <button type="submit" class="btn btn-primary">Save Record</button>
+        <a href="{{ url_for('compliance.index') }}"
+           class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+    </div>
+
+</form>
+</div>
+
+<script>
+function setRenewal(docType) {
+    const sel = document.getElementById('document_type');
+    const opt = sel.options[sel.selectedIndex];
+    const years = opt ? opt.getAttribute('data-years') : 1;
+    document.getElementById('renewal_years').value = years || 1;
+    calcExpiry();
+}
+
+function calcExpiry() {
+    const issueVal = document.getElementById('issue_date').value;
+    const expiryField = document.getElementById('expiry_date');
+    const years = parseInt(document.getElementById('renewal_years').value) || 1;
+
+    if (issueVal && !expiryField.value) {
+        const issue = new Date(issueVal);
+        issue.setFullYear(issue.getFullYear() + years);
+        // Subtract 1 day so e.g. issued 01/01/2025 expires 31/12/2025
+        issue.setDate(issue.getDate() - 1);
+        expiryField.value = issue.toISOString().split('T')[0];
+    }
+}
+</script>
+{% endblock %}

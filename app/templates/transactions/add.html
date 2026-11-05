@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Manual Transaction{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Manual Transaction Entry</h1>
+    <a href="{{ url_for('transactions.index') }}" class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<p class="text-muted">
+    Use this for cash payments, corrections, or any transaction not on a bank statement.
+    A dual-entry (credit + debit) pair will be created automatically.
+</p>
+
+<div style="max-width:520px; margin-top:20px;">
+<form method="POST" action="{{ url_for('transactions.add') }}">
+
+    <div class="form-group">
+        <label for="transaction_date">Date <span style="color:var(--error);">*</span></label>
+        <input type="date" id="transaction_date" name="transaction_date"
+               value="{{ request.form.get('transaction_date', '') }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="tenant_id">Tenant</label>
+        <select id="tenant_id" name="tenant_id">
+            <option value="">— No tenant (expense / landlord entry) —</option>
+            {% for tenant in tenants %}
+            <option value="{{ tenant.id }}"
+                {% if request.form.get('tenant_id')|int == tenant.id %}selected{% endif %}>
+                {{ tenant.full_name }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="type">Transaction Type <span style="color:var(--error);">*</span></label>
+        <select id="type" name="type" required>
+            <option value="">— Select type —</option>
+            <option value="Rent">Rent</option>
+            <option value="Gas/Electric">Gas/Electric</option>
+            <option value="Council Tax">Council Tax</option>
+            <option value="Deposit">Deposit</option>
+            <option value="Maintenance">Maintenance</option>
+            <option value="Expense">Expense</option>
+            <option value="Refund">Refund</option>
+            <option value="Other">Other</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="charge_type_id">HMRC Charge Category</label>
+        <select id="charge_type_id" name="charge_type_id">
+            <option value="">— Optional —</option>
+            {% for charge in charge_types %}
+            <option value="{{ charge.id }}"
+                {% if request.form.get('charge_type_id')|int == charge.id %}selected{% endif %}>
+                {{ charge.charge_name }}
+                {% if charge.hmrc_category %} — {{ charge.hmrc_category[:40] }}{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+            <label for="amount">Amount (£) <span style="color:var(--error);">*</span></label>
+            <input type="number" id="amount" name="amount"
+                   step="0.01" min="0.01"
+                   value="{{ request.form.get('amount','') }}" required>
+        </div>
+        <div class="form-group">
+            <label for="credit_debit">Direction <span style="color:var(--error);">*</span></label>
+            <select id="credit_debit" name="credit_debit">
+                <option value="cr"
+                    {% if request.form.get('credit_debit','cr') == 'cr' %}selected{% endif %}>
+                    Credit (money in)
+                </option>
+                <option value="db"
+                    {% if request.form.get('credit_debit') == 'db' %}selected{% endif %}>
+                    Debit (money out / charge)
+                </option>
+            </select>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="source">Source</label>
+        <select id="source" name="source">
+            <option value="manual"
+                {% if request.form.get('source','manual') == 'manual' %}selected{% endif %}>
+                Manual entry
+            </option>
+            <option value="cash"
+                {% if request.form.get('source') == 'cash' %}selected{% endif %}>
+                Cash payment
+            </option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="notes">Notes</label>
+        <input type="text" id="notes" name="notes"
+               value="{{ request.form.get('notes','') }}"
+               placeholder="e.g. Cash rent payment for October">
+    </div>
+
+    <div class="mt-2">
+        <button type="submit" class="btn btn-primary">Save Transaction</button>
+        <a href="{{ url_for('transactions.index') }}"
+           class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+    </div>
+
+</form>
+</div>
+{% endblock %}

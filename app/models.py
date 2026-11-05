@@ -308,6 +308,8 @@ class TransactionLegend(db.Model):
     income_type = db.Column(db.String(100))
     expense_type = db.Column(db.String(100))
     preferred_description = db.Column(db.String(200))
+    tenant = db.relationship('Tenant', backref='legend_entries',
+                             foreign_keys='TransactionLegend.tenant_id')
 
 
 class Expense(db.Model):
@@ -326,6 +328,12 @@ class Expense(db.Model):
         'bank_import_rows.id'), nullable=True)
     receipt_path = db.Column(db.String(300))
     notes = db.Column(db.Text)
+    charge_type = db.relationship('PicklistCharge',
+                                  foreign_keys='Expense.charge_type_id',
+                                  backref='expenses')
+    property = db.relationship('Property',
+                               foreign_keys='Expense.property_id',
+                               backref='expenses')
 
 
 class PicklistCharge(db.Model):

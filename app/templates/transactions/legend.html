@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Auto-Match Rules{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Auto-Match Rules</h1>
+    <a href="{{ url_for('transactions.index') }}" class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<p class="text-muted">
+    When a bank statement is imported, each row's description is checked against
+    these rules. If a match is found the transaction is automatically assigned to
+    that tenant. Patterns are matched case-insensitively.
+</p>
+
+<!-- Add new rule -->
+<div class="card" style="max-width:700px; margin:20px 0 28px;">
+    <div class="card-title">Add New Rule</div>
+    <form method="POST" action="{{ url_for('transactions.legend_add') }}">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;">
+
+            <div class="form-group" style="margin:0;">
+                <label for="description_pattern">
+                    Bank Description Pattern <span style="color:var(--error);">*</span>
+                </label>
+                <input type="text" id="description_pattern"
+                       name="description_pattern"
+                       placeholder="e.g. GOLLA H"
+                       style="text-transform:uppercase;">
+                <span class="form-hint">
+                    Exact text that appears in the bank description.
+                    Will be matched in uppercase.
+                </span>
+            </div>
+
+            <div class="form-group" style="margin:0;">
+                <label for="tenant_id">Link to Tenant</label>
+                <select id="tenant_id" name="tenant_id">
+                    <option value="">— No tenant (expense rule) —</option>
+                    {% for tenant in tenants %}
+                    <option value="{{ tenant.id }}">{{ tenant.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" style="margin:0;">
+                <label for="income_type">Income Type</label>
+                <select id="income_type" name="income_type">
+                    <option value="">—</option>
+                    <option value="Rent">Rent</option>
+                    <option value="Gas/Electric">Gas/Electric</option>
+                    <option value="Council Tax">Council Tax</option>
+                    <option value="Deposit">Deposit</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="margin:0;">
+                <label for="expense_type">Expense Type</label>
+                <select id="expense_type" name="expense_type">
+                    <option value="">—</option>
+                    <option value="Water">Water</option>
+                    <option value="Broadband">Broadband</option>
+                    <option value="Insurance">Insurance</option>
+                    <option value="Maintenance">Maintenance</option>
+                    <option value="Wages">Wages</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="margin:0; grid-column:1/-1;">
+                <label for="preferred_description">Preferred Description</label>
+                <input type="text" id="preferred_description"
+                       name="preferred_description"
+                       placeholder="e.g. GOLLA H Rent — used in QuickFile export">
+                <span class="form-hint">
+                    This replaces the raw bank description in the QuickFile export.
+                </span>
+            </div>
+
+        </div>
+        <button type="submit" class="btn btn-primary"
+                style="margin-top:14px;">Add Rule</button>
+    </form>
+</div>
+
+<!-- Existing rules -->
+<h2>Existing Rules ({{ legends|length }})</h2>
+{% if legends %}
+<table>
+    <thead>
+        <tr>
+            <th>Bank Pattern</th>
+            <th>Tenant</th>
+            <th>Income Type</th>
+            <th>Expense Type</th>
+            <th>Preferred Description</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for leg in legends %}
+        <tr>
+            <td><code>{{ leg.description_pattern }}</code></td>
+            <td>
+                {% if leg.tenant_id %}
+                    <a href="{{ url_for('tenants.view', tenant_id=leg.tenant_id) }}">
+                        {{ leg.tenant.full_name if leg.tenant else leg.tenant_id }}
+                    </a>
+                {% else %}
+                    <span class="text-muted">— expense —</span>
+                {% endif %}
+            </td>
+            <td>{{ leg.income_type or '—' }}</td>
+            <td>{{ leg.expense_type or '—' }}</td>
+            <td style="font-size:13px;">{{ leg.preferred_description or '—' }}</td>
+            <td>
+                <form method="POST"
+                      action="{{ url_for('transactions.legend_delete', legend_id=leg.id) }}"
+                      onsubmit="return confirm('Delete this rule?');">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card" style="max-width:500px;">
+    <div class="card-title">No rules yet</div>
+    <p style="margin:8px 0;">
+        Add a rule for each tenant's bank reference before importing your statement.
+        For example, if your tenant GOLLA H always uses "GOLLA H" as their bank
+        reference, add that as a pattern linked to their tenant record.
+    </p>
+</div>
+{% endif %}
+{% endblock %}

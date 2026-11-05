@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Edit — {{ doc.document_type }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Edit — {{ doc.document_type }}</h1>
+    <a href="{{ url_for('compliance.index') }}"
+       class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<div style="max-width:560px; margin-top:20px;">
+<form method="POST"
+      action="{{ url_for('compliance.edit', doc_id=doc.id) }}"
+      enctype="multipart/form-data">
+
+    <div class="form-group">
+        <label for="property_id">Property</label>
+        <select id="property_id" name="property_id" required>
+            {% for prop in properties %}
+            <option value="{{ prop.id }}"
+                {% if doc.property_id == prop.id %}selected{% endif %}>
+                {{ prop.property_ref or prop.address_line1 }}
+                — {{ prop.address_line1 }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="document_type">Document Type</label>
+        <select id="document_type" name="document_type" required>
+            {% for doc_type, years in document_types %}
+            <option value="{{ doc_type }}"
+                {% if doc.document_type == doc_type %}selected{% endif %}>
+                {{ doc_type }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+            <label for="issue_date">Issue Date</label>
+            <input type="date" id="issue_date" name="issue_date"
+                   value="{{ doc.issue_date.isoformat() if doc.issue_date else '' }}">
+        </div>
+        <div class="form-group">
+            <label for="expiry_date">Expiry Date</label>
+            <input type="date" id="expiry_date" name="expiry_date"
+                   value="{{ doc.expiry_date.isoformat() if doc.expiry_date else '' }}">
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="renewal_years">Renewal Period (years)</label>
+        <input type="number" id="renewal_years" name="renewal_years"
+               min="1" max="10"
+               value="{{ doc.renewal_years or 1 }}"
+               style="max-width:100px;">
+    </div>
+
+    <!-- Current file -->
+    {% if doc.file_path %}
+    <div class="card" style="margin-bottom:16px; font-size:14px;">
+        <div class="card-title">Current File</div>
+        <p style="margin:6px 0;">
+            {{ doc.file_path }}
+            &nbsp;
+            <a href="{{ url_for('compliance.download', doc_id=doc.id) }}"
+               class="btn btn-secondary btn-sm">&#8595; Download</a>
+        </p>
+        <p style="color:var(--text-secondary); font-size:13px; margin:4px 0 0;">
+            Upload a new file below to replace it.
+        </p>
+    </div>
+    {% endif %}
+
+    <div class="form-group">
+        <label for="document_file">
+            {{ 'Replace' if doc.file_path else 'Upload' }} Document
+            (PDF, JPG, PNG)
+        </label>
+        <input type="file" id="document_file" name="document_file"
+               accept=".pdf,.jpg,.jpeg,.png"
+               style="border:2px solid var(--grey-dark); padding:8px;">
+    </div>
+
+    <div class="form-group">
+        <label for="notes">Notes</label>
+        <input type="text" id="notes" name="notes"
+               value="{{ doc.notes or '' }}"
+               placeholder="e.g. Engineer name, certificate number">
+    </div>
+
+    <div class="mt-2">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a href="{{ url_for('compliance.index') }}"
+           class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+    </div>
+
+</form>
+</div>
+{% endblock %}

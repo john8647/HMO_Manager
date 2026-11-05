@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+{% block title %}Review Import — {{ bank_import.filename }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Review Import</h1>
+    <a href="{{ url_for('transactions.imports') }}" class="btn btn-secondary">
+        &larr; Import History
+    </a>
+</div>
+
+<!-- Import summary -->
+<div class="card-grid" style="margin-bottom:24px;">
+    <div class="card">
+        <div class="card-title">File</div>
+        <div style="font-size:14px; font-weight:600;">{{ bank_import.filename }}</div>
+        <div class="card-sub">{{ bank_import.import_date.strftime('%d %b %Y %H:%M') }}</div>
+    </div>
+    <div class="card">
+        <div class="card-title">Total Rows</div>
+        <div class="card-value">{{ rows|length }}</div>
+    </div>
+    <div class="card">
+        <div class="card-title">Auto-Matched</div>
+        <div class="card-value" style="color:var(--green-primary);">{{ auto|length }}</div>
+    </div>
+    <div class="card">
+        <div class="card-title">Need Review</div>
+        <div class="card-value" style="color:var(--error);">{{ unmatched|length }}</div>
+    </div>
+</div>
+
+<!-- Confirm all auto-matched -->
+{% if auto %}
+<div class="card" style="margin-bottom:24px; border-top-color:var(--green-primary);">
+    <div class="card-title">Auto-Matched Rows ({{ auto|length }})</div>
+    <p style="font-size:14px; margin:8px 0 16px;">
+        These rows were matched to tenants using your legend rules.
+        Review below and confirm all to create transactions.
+    </p>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Matched To</th>
+                <th style="text-align:right;">Credit</th>
+                <th style="text-align:right;">Debit</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in auto %}
+            <tr>
+                <td>{{ row.transaction_date.strftime('%d %b %Y') }}</td>
+                <td>{{ row.description }}</td>
+                <td>
+                    {% set legend = row.description %}
+                    <span class="badge badge-green">Auto-matched</span>
+                </td>
+                <td style="text-align:right;">
+                    {% if row.credit_amount %}£{{ '%.2f'|format(row.credit_amount) }}{% endif %}
+                </td>
+                <td style="text-align:right;">
+                    {% if row.debit_amount %}£{{ '%.2f'|format(row.debit_amount) }}{% endif %}
+                </td>
+                <td>
+                    {% if row.transaction_id %}
+                        <span class="badge badge-green">Confirmed</span>
+                    {% else %}
+                        <span class="badge badge-yellow">Pending</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% set pending_auto = auto|selectattr('transaction_id', 'none')|list %}
+    {% if pending_auto %}
+    <form method="POST"
+          action="{{ url_for('transactions.match', import_id=bank_import.id) }}"
+          style="margin-top:12px;">
+        <input type="hidden" name="action" value="confirm_all">
+        <button type="submit" class="btn btn-primary">
+            &#10003; Confirm All {{ pending_auto|length }} Auto-Matched
+        </button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Unmatched rows -->
+{% if unmatched %}
+<div style="margin-bottom:24px;">
+    <h2 style="color:var(--error);">Unmatched Rows — Need Review ({{ unmatched|length }})</h2>
+    <p class="text-muted" style="font-size:14px;">
+        Assign each row to a tenant, mark as an expense, split it, or skip it.
+    </p>
+
+    {% for row in unmatched %}
+    <div class="card" style="margin-bottom:16px; border-top-color:var(--error);">
+        <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+            <div>
+                <strong>{{ row.description }}</strong>
+                <span class="text-muted" style="margin-left:12px; font-size:13px;">
+                    {{ row.transaction_date.strftime('%d %b %Y') }}
+                    &bull; {{ row.transaction_type }}
+                </span>
+            </div>
+            <div style="font-size:18px; font-weight:700;">
+                {% if row.credit_amount %}
+                    <span style="color:var(--green-dark);">
+                        +£{{ '%.2f'|format(row.credit_amount) }}
+                    </span>
+                {% else %}
+                    <span style="color:var(--error);">
+                        -£{{ '%.2f'|format(row.debit_amount) }}
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Manual match form -->
+        <details style="margin-bottom:12px;">
+            <summary style="cursor:pointer; color:var(--green-primary);
+                            font-weight:600; font-size:14px;">
+                Assign to tenant / expense
+            </summary>
+            <form method="POST"
+                  action="{{ url_for('transactions.match', import_id=bank_import.id) }}"
+                  style="margin-top:12px;">
+                <input type="hidden" name="action" value="manual_match">
+                <input type="hidden" name="row_id" value="{{ row.id }}">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Tenant</label>
+                        <select name="tenant_id">
+                            <option value="">— No tenant (expense) —</option>
+                            {% for t in tenants %}
+                            <option value="{{ t.id }}">{{ t.full_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Type</label>
+                        <select name="type">
+                            <option value="Rent">Rent</option>
+                            <option value="Gas/Electric">Gas/Electric</option>
+                            <option value="Council Tax">Council Tax</option>
+                            <option value="Expense">Expense</option>
+                            <option value="Maintenance">Maintenance</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>HMRC Category</label>
+                        <select name="charge_type_id">
+                            <option value="">— Optional —</option>
+                            {% for c in charge_types %}
+                            <option value="{{ c.id }}">{{ c.charge_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Notes</label>
+                        <input type="text" name="notes"
+                               placeholder="{{ row.description }}">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm"
+                        style="margin-top:10px;">
+                    Confirm Match
+                </button>
+            </form>
+        </details>
+
+        <!-- Split form -->
+        {% set total = row.credit_amount or row.debit_amount %}
+        <details style="margin-bottom:12px;">
+            <summary style="cursor:pointer; color:var(--green-primary);
+                            font-weight:600; font-size:14px;">
+                Split payment (e.g. rent + bills in one transfer)
+            </summary>
+            <form method="POST"
+                  action="{{ url_for('transactions.match', import_id=bank_import.id) }}"
+                  style="margin-top:12px;">
+                <input type="hidden" name="action" value="split">
+                <input type="hidden" name="row_id" value="{{ row.id }}">
+                <p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">
+                    Total: £{{ '%.2f'|format(total) }} — both amounts must add up to this.
+                </p>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                    <div>
+                        <strong style="font-size:13px;">Split 1</strong>
+                        <div class="form-group" style="margin-top:6px;">
+                            <label>Amount (£)</label>
+                            <input type="number" name="split1_amount" step="0.01" min="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>Type</label>
+                            <select name="split1_type">
+                                <option value="Rent">Rent</option>
+                                <option value="Gas/Electric">Gas/Electric</option>
+                                <option value="Council Tax">Council Tax</option>
+                                <option value="Expense">Expense</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Tenant</label>
+                            <select name="split1_tenant_id">
+                                <option value="">— None —</option>
+                                {% for t in tenants %}
+                                <option value="{{ t.id }}">{{ t.full_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <strong style="font-size:13px;">Split 2</strong>
+                        <div class="form-group" style="margin-top:6px;">
+                            <label>Amount (£)</label>
+                            <input type="number" name="split2_amount" step="0.01" min="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>Type</label>
+                            <select name="split2_type">
+                                <option value="Rent">Rent</option>
+                                <option value="Gas/Electric">Gas/Electric</option>
+                                <option value="Council Tax">Council Tax</option>
+                                <option value="Expense">Expense</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Tenant</label>
+                            <select name="split2_tenant_id">
+                                <option value="">— None —</option>
+                                {% for t in tenants %}
+                                <option value="{{ t.id }}">{{ t.full_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-secondary btn-sm">
+                    Confirm Split
+                </button>
+            </form>
+        </details>
+
+        <!-- Skip -->
+        <form method="POST"
+              action="{{ url_for('transactions.match', import_id=bank_import.id) }}"
+              style="display:inline;">
+            <input type="hidden" name="action" value="skip">
+            <input type="hidden" name="row_id" value="{{ row.id }}">
+            <button type="submit" class="btn btn-secondary btn-sm">Skip</button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Confirmed / skipped summary -->
+{% if confirmed or skipped %}
+<details>
+    <summary style="cursor:pointer; font-weight:600; color:var(--text-secondary);
+                    margin-bottom:12px;">
+        Completed rows ({{ confirmed|length }} confirmed, {{ skipped|length }} skipped)
+    </summary>
+    <table style="margin-top:12px;">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Status</th>
+                <th style="text-align:right;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in confirmed + skipped %}
+            <tr>
+                <td>{{ row.transaction_date.strftime('%d %b %Y') }}</td>
+                <td>{{ row.description }}</td>
+                <td>
+                    {% if row.match_status == 'skipped' %}
+                        <span class="badge badge-grey">Skipped</span>
+                    {% elif row.match_status == 'split' %}
+                        <span class="badge badge-yellow">Split</span>
+                    {% else %}
+                        <span class="badge badge-green">Confirmed</span>
+                    {% endif %}
+                </td>
+                <td style="text-align:right;">
+                    {% if row.credit_amount %}
+                        +£{{ '%.2f'|format(row.credit_amount) }}
+                    {% else %}
+                        -£{{ '%.2f'|format(row.debit_amount) }}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</details>
+{% endif %}
+
+{% endblock %}

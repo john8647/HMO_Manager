@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Add Expense{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Add Expense</h1>
+    <a href="{{ url_for('expenses.index') }}" class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<p class="text-muted">
+    Record a business expense. Optionally add a debit entry to the transaction
+    ledger so it appears in your financial records and QuickFile export.
+</p>
+
+<div style="max-width:580px; margin-top:20px;">
+<form method="POST" action="{{ url_for('expenses.add') }}">
+
+    <div class="form-group">
+        <label for="description">
+            Description <span style="color:var(--error);">*</span>
+        </label>
+        <input type="text" id="description" name="description"
+               value="{{ request.form.get('description','') }}"
+               placeholder="e.g. Severn Trent Water — October"
+               required autofocus>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+            <label for="amount">
+                Amount (£) <span style="color:var(--error);">*</span>
+            </label>
+            <input type="number" id="amount" name="amount"
+                   step="0.01" min="0.01"
+                   value="{{ request.form.get('amount','') }}" required>
+        </div>
+        <div class="form-group">
+            <label for="expense_date">
+                Date <span style="color:var(--error);">*</span>
+            </label>
+            <input type="date" id="expense_date" name="expense_date"
+                   value="{{ request.form.get('expense_date','') }}" required>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="property_id">Property</label>
+        <select id="property_id" name="property_id">
+            <option value="">— General business expense (not property-specific) —</option>
+            {% for prop in properties %}
+            <option value="{{ prop.id }}"
+                {% if request.form.get('property_id')|int == prop.id %}selected{% endif %}>
+                {{ prop.property_ref or prop.address_line1 }} — {{ prop.postcode }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="charge_type_id">HMRC Category</label>
+        <select id="charge_type_id" name="charge_type_id">
+            <option value="">— Select category —</option>
+            {% for charge in charge_types %}
+            <option value="{{ charge.id }}"
+                {% if request.form.get('charge_type_id')|int == charge.id %}selected{% endif %}>
+                {{ charge.charge_name }}
+                {% if charge.hmrc_category %}
+                    — {{ charge.hmrc_category }}
+                {% endif %}
+            </option>
+            {% endfor %}
+        </select>
+        <span class="form-hint">
+            Used for Self Assessment categorisation and QuickFile export.
+        </span>
+    </div>
+
+    <div class="form-group">
+        <label for="source">Source</label>
+        <select id="source" name="source">
+            <option value="manual"
+                {% if request.form.get('source','manual') == 'manual' %}selected{% endif %}>
+                Manual entry
+            </option>
+            <option value="bank"
+                {% if request.form.get('source') == 'bank' %}selected{% endif %}>
+                Bank payment
+            </option>
+            <option value="cash"
+                {% if request.form.get('source') == 'cash' %}selected{% endif %}>
+                Cash payment
+            </option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="notes">Notes / Reference</label>
+        <input type="text" id="notes" name="notes"
+               value="{{ request.form.get('notes','') }}"
+               placeholder="e.g. Invoice ref, supplier name, job description">
+    </div>
+
+    <!-- Transaction ledger option -->
+    <div class="card" style="margin-bottom:20px;">
+        <div style="display:flex; align-items:flex-start; gap:10px;">
+            <input type="checkbox" id="create_transaction"
+                   name="create_transaction"
+                   style="width:auto; margin-top:3px;"
+                   {% if request.form.get('create_transaction','on') == 'on' %}
+                       checked{% endif %}>
+            <div>
+                <label for="create_transaction" style="font-weight:600; margin:0;">
+                    Add debit entry to transaction ledger
+                </label>
+                <p style="font-size:13px; color:var(--text-secondary); margin:4px 0 0;">
+                    Recommended. Creates a matching debit record so this expense
+                    appears in your ledger and QuickFile export. Uncheck only if
+                    you are recording this from a bank import that already created
+                    the transaction.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-2">
+        <button type="submit" class="btn btn-primary">Save Expense</button>
+        <a href="{{ url_for('expenses.index') }}"
+           class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+    </div>
+
+</form>
+</div>
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Transactions{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Transactions</h1>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="{{ url_for('transactions.import_csv') }}" class="btn btn-primary">
+            &#8679; Import Bank CSV
+        </a>
+        <a href="{{ url_for('transactions.add') }}" class="btn btn-secondary">
+            + Manual Entry
+        </a>
+        <a href="{{ url_for('transactions.legend') }}" class="btn btn-secondary">
+            Auto-Match Rules
+        </a>
+        <a href="{{ url_for('transactions.imports') }}" class="btn btn-secondary">
+            Import History
+        </a>
+    </div>
+</div>
+
+<!-- Summary cards -->
+<div class="card-grid" style="margin-bottom:24px;">
+    <div class="card">
+        <div class="card-title">Total Credits</div>
+        <div class="card-value">£{{ '%.2f'|format(credits) }}</div>
+        <div class="card-sub">Income received</div>
+    </div>
+    <div class="card">
+        <div class="card-title">Total Debits</div>
+        <div class="card-value">£{{ '%.2f'|format(debits) }}</div>
+        <div class="card-sub">Charges recorded</div>
+    </div>
+    <div class="card">
+        <div class="card-title">Transactions</div>
+        <div class="card-value">{{ transactions|length }}</div>
+        <div class="card-sub">Last 200 shown</div>
+    </div>
+</div>
+
+{% if transactions %}
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Tenant</th>
+            <th>Type</th>
+            <th>Notes</th>
+            <th>Period</th>
+            <th>Source</th>
+            <th style="text-align:right;">Credit</th>
+            <th style="text-align:right;">Debit</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% set last_period = namespace(val='') %}
+        {% for t in transactions %}
+        {% if t.month_year_period != last_period.val %}
+        <tr style="background:var(--green-light);">
+            <td colspan="8" style="font-weight:700; font-size:13px;
+                                    color:var(--green-dark); padding:6px 14px;">
+                {{ t.month_year_period }}
+            </td>
+        </tr>
+        {% set last_period.val = t.month_year_period %}
+        {% endif %}
+        <tr>
+            <td>{{ t.transaction_date.strftime('%d %b %Y') }}</td>
+            <td>
+                {% if t.tenant %}
+                    <a href="{{ url_for('tenants.view', tenant_id=t.tenant_id) }}">
+                        {{ t.tenant.full_name }}
+                    </a>
+                {% else %}
+                    <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <td>{{ t.type or '—' }}</td>
+            <td style="font-size:13px; color:var(--text-secondary);">
+                {{ t.notes[:60] if t.notes else '—' }}
+            </td>
+            <td style="font-size:12px;">{{ t.month_year_period or '—' }}</td>
+            <td>
+                {% if t.source == 'bank_import' %}
+                    <span class="badge badge-green">Bank</span>
+                {% elif t.source == 'cash' %}
+                    <span class="badge badge-yellow">Cash</span>
+                {% else %}
+                    <span class="badge badge-grey">Manual</span>
+                {% endif %}
+            </td>
+            <td style="text-align:right; color:var(--green-dark);">
+                {% if t.credit_debit == 'cr' %}
+                    <strong>£{{ '%.2f'|format(t.amount) }}</strong>
+                {% endif %}
+            </td>
+            <td style="text-align:right; color:var(--error);">
+                {% if t.credit_debit == 'db' %}
+                    £{{ '%.2f'|format(t.amount) }}
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card" style="max-width:500px;">
+    <div class="card-title">No transactions yet</div>
+    <p style="margin:8px 0 16px;">Import your bank statement or add a manual entry to get started.</p>
+    <a href="{{ url_for('transactions.import_csv') }}" class="btn btn-primary">
+        &#8679; Import Bank CSV
+    </a>
+</div>
+{% endif %}
+{% endblock %}

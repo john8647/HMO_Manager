@@ -37,28 +37,34 @@ def parse_bank_csv(file_content: str) -> list[dict]:
 
     rows = []
     for i, row in enumerate(reader, start=2):
-        try:
-            transaction_date = datetime.strptime(
-                row['Transaction Date'].strip(), '%d/%m/%Y'
-            ).date()
-        except ValueError:
-            raise ValueError(f"Row {i}: Invalid date '{row['Transaction Date']}'")
+        date_str = row.get('Transaction Date', '').strip()
+        if not date_str:
+            continue
 
-        debit_raw = row.get('Debit Amount', '').strip().replace(',', '')
+        try:
+            transaction_date = datetime.strptime(date_str, '%d/%m/%Y').date()
+        except ValueError:
+            raise ValueError(f"Row {i}: Invalid date '{date_str}'")
+
+        debit_raw  = row.get('Debit Amount', '').strip().replace(',', '')
         credit_raw = row.get('Credit Amount', '').strip().replace(',', '')
 
-        debit = Decimal(debit_raw) if debit_raw else None
+        debit  = Decimal(debit_raw)  if debit_raw  else None
         credit = Decimal(credit_raw) if credit_raw else None
 
         rows.append({
             'transaction_date': transaction_date,
             'transaction_type': row.get('Transaction Type', '').strip().lstrip("'"),
-            'sort_code': row.get('Sort Code', '').strip().lstrip("'"),
-            'account_number': row.get('Account Number', '').strip().lstrip("'"),
-            'description': row.get('Transaction Description', '').strip(),
-            'debit_amount': debit,
-            'credit_amount': credit,
-            'match_status': 'unmatched',
+            'sort_code':        row.get('Sort Code', '').strip().lstrip("'"),
+            'account_number':   row.get('Account Number', '').strip().lstrip("'"),
+            'description':      row.get('Transaction Description', '').strip(),
+            'debit_amount':     debit,
+            'credit_amount':    credit,
+            'match_status':     'unmatched',
+            'matched_tenant_id':    None,
+            'preferred_description': None,
+            'income_type':      None,
+            'expense_type':     None,
         })
 
     return rows
@@ -70,10 +76,14 @@ def auto_match_rows(rows: list[dict], legends: list) -> list[dict]:
     legends: list of TransactionLegend model instances.
 
     Sets match_status to 'auto' and attaches legend data if matched.
+    Matching is case-insensitive and checks if pattern appears anywhere
+    in the description.
     """
-    legend_map = {
-        leg.description_pattern.upper(): leg for leg in legends
-    }
+    # Build lookup: uppercase pattern → legend
+    legend_map = {}
+    for leg in legends:
+        pattern = leg.description_pattern.strip().upper()
+        legend_map[pattern] = leg
 
     for row in rows:
         desc_upper = row['description'].upper()
@@ -85,13 +95,13 @@ def auto_match_rows(rows: list[dict], legends: list) -> list[dict]:
                 break
 
         if matched_legend:
-            row['match_status'] = 'auto'
-            row['matched_tenant_id'] = matched_legend.tenant_id
+            row['match_status']          = 'auto'
+            row['matched_tenant_id']     = matched_legend.tenant_id
             row['preferred_description'] = matched_legend.preferred_description
-            row['income_type'] = matched_legend.income_type
-            row['expense_type'] = matched_legend.expense_type
+            row['income_type']           = matched_legend.income_type
+            row['expense_type']          = matched_legend.expense_type
         else:
-            row['match_status'] = 'unmatched'
+            row['match_status']      = 'unmatched'
             row['matched_tenant_id'] = None
 
     return rows

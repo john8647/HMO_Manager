@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Import History{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Import History</h1>
+    <a href="{{ url_for('transactions.import_csv') }}" class="btn btn-primary">
+        &#8679; New Import
+    </a>
+</div>
+
+{% if imports %}
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Filename</th>
+            <th>Total Rows</th>
+            <th>Auto-Matched</th>
+            <th>Unmatched</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for imp in imports %}
+        <tr>
+            <td>{{ imp.import_date.strftime('%d %b %Y %H:%M') }}</td>
+            <td>{{ imp.filename }}</td>
+            <td>{{ imp.row_count }}</td>
+            <td>
+                <span class="badge badge-green">{{ imp.matched_count }}</span>
+            </td>
+            <td>
+                {% if imp.unmatched_count > 0 %}
+                    <span class="badge badge-red">{{ imp.unmatched_count }}</span>
+                {% else %}
+                    <span class="badge badge-grey">0</span>
+                {% endif %}
+            </td>
+            <td>
+                <a href="{{ url_for('transactions.match', import_id=imp.id) }}"
+                   class="btn btn-secondary btn-sm">Review</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card" style="max-width:500px;">
+    <div class="card-title">No imports yet</div>
+    <p style="margin:8px 0 16px;">
+        Import your first bank statement CSV to get started.
+    </p>
+    <a href="{{ url_for('transactions.import_csv') }}" class="btn btn-primary">
+        &#8679; Import Bank CSV
+    </a>
+</div>
+{% endif %}
+{% endblock %}

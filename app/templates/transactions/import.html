@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Import Bank Statement{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Import Bank Statement</h1>
+    <a href="{{ url_for('transactions.index') }}" class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<p class="text-muted">
+    Upload your bank statement CSV. The system will auto-match transactions to tenants
+    using your legend rules, then let you review and confirm each one.
+</p>
+
+<!-- Expected format -->
+<div class="card" style="max-width:700px; margin:20px 0;">
+    <div class="card-title">Expected CSV Format</div>
+    <p style="font-size:13px; margin-bottom:8px;">
+        Your CSV must have these exact column headers (as exported from your bank):
+    </p>
+    <code style="display:block; background:var(--grey-light); padding:10px 14px;
+                 font-size:12px; border-radius:2px; line-height:2;">
+        Transaction Date, Transaction Type, Sort Code, Account Number,
+        Transaction Description, Debit Amount, Credit Amount
+    </code>
+    <p style="font-size:13px; margin-top:10px; color:var(--text-secondary);">
+        Example row:<br>
+        <code>27/10/2026, FPI, '11-02-12, 12045867, GOLLA H, , 582.00</code>
+    </p>
+</div>
+
+<div style="max-width:480px;">
+<form method="POST" action="{{ url_for('transactions.import_csv') }}"
+      enctype="multipart/form-data">
+
+    <div class="form-group">
+        <label for="csv_file">Select CSV File <span style="color:var(--error);">*</span></label>
+        <input type="file" id="csv_file" name="csv_file"
+               accept=".csv" required
+               style="border:2px solid var(--grey-dark); padding:8px;">
+    </div>
+
+    <div class="card" style="margin-bottom:20px; font-size:14px;">
+        <strong>Before importing:</strong>
+        <ul style="margin:8px 0 0 20px; line-height:2;">
+            <li>Make sure your <a href="{{ url_for('transactions.legend') }}">
+                auto-match rules</a> are set up for your tenants</li>
+            <li>Each tenant should have a legend entry for their bank reference
+                (e.g. "GOLLA H")</li>
+            <li>You can review and manually assign any unmatched rows after import</li>
+        </ul>
+    </div>
+
+    <div class="mt-2">
+        <button type="submit" class="btn btn-primary">Upload &amp; Import</button>
+        <a href="{{ url_for('transactions.index') }}"
+           class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+    </div>
+
+</form>
+</div>
+{% endblock %}

@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Expenses{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Expenses</h1>
+    <a href="{{ url_for('expenses.add') }}" class="btn btn-primary">+ Add Expense</a>
+</div>
+
+<!-- Property filter -->
+<div style="margin-bottom:20px; display:flex; align-items:center; gap:12px;">
+    <label style="font-weight:600; font-size:14px;">Filter by property:</label>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="{{ url_for('expenses.index') }}"
+           class="btn btn-sm {% if not filter_property %}btn-primary{% else %}btn-secondary{% endif %}">
+            All
+        </a>
+        {% for prop in properties %}
+        <a href="{{ url_for('expenses.index', property_id=prop.id) }}"
+           class="btn btn-sm {% if filter_property == prop.id|string %}btn-primary{% else %}btn-secondary{% endif %}">
+            {{ prop.property_ref or prop.address_line1 }}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Summary cards -->
+<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr));
+            gap:14px; margin-bottom:28px;">
+    <div class="card">
+        <div class="card-title">Total Expenses</div>
+        <div class="card-value">£{{ '%.2f'|format(total) }}</div>
+        <div class="card-sub">{{ expenses|length }} records shown</div>
+    </div>
+    {% for category, amount in by_category.items() %}
+    <div class="card">
+        <div class="card-title">{{ category }}</div>
+        <div class="card-value" style="font-size:20px;">
+            £{{ '%.2f'|format(amount) }}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if expenses %}
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th>Property</th>
+            <th>Category</th>
+            <th>HMRC Box</th>
+            <th>Source</th>
+            <th style="text-align:right;">Amount</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% set last_month = namespace(val='') %}
+        {% for expense in expenses %}
+        {% set month = expense.expense_date.strftime('%B %Y') %}
+        {% if month != last_month.val %}
+        <tr style="background:var(--green-light);">
+            <td colspan="8" style="font-weight:700; font-size:13px;
+                                    color:var(--green-dark); padding:6px 14px;">
+                {{ month }}
+            </td>
+        </tr>
+        {% set last_month.val = month %}
+        {% endif %}
+        <tr>
+            <td>{{ expense.expense_date.strftime('%d %b %Y') }}</td>
+            <td><strong>{{ expense.description }}</strong>
+                {% if expense.notes %}
+                <br><span style="font-size:12px; color:var(--text-secondary);">
+                    {{ expense.notes }}
+                </span>
+                {% endif %}
+            </td>
+            <td>
+                {% if expense.property %}
+                    {{ expense.property.property_ref or expense.property.address_line1 }}
+                {% else %}
+                    <span class="text-muted">General</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if expense.charge_type %}
+                    <span class="badge badge-grey">{{ expense.charge_type.charge_name }}</span>
+                {% else %}
+                    <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <td style="font-size:12px; color:var(--text-secondary);">
+                {% if expense.charge_type and expense.charge_type.hmrc_category %}
+                    {{ expense.charge_type.hmrc_category[:35] }}…
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+            <td>
+                {% if expense.source == 'bank' %}
+                    <span class="badge badge-green">Bank</span>
+                {% elif expense.source == 'cash' %}
+                    <span class="badge badge-yellow">Cash</span>
+                {% else %}
+                    <span class="badge badge-grey">Manual</span>
+                {% endif %}
+            </td>
+            <td style="text-align:right; color:var(--error);">
+                <strong>£{{ '%.2f'|format(expense.amount) }}</strong>
+            </td>
+            <td>
+                <a href="{{ url_for('expenses.edit', expense_id=expense.id) }}"
+                   class="btn btn-secondary btn-sm">Edit</a>
+                <form method="POST"
+                      action="{{ url_for('expenses.delete', expense_id=expense.id) }}"
+                      style="display:inline;"
+                      onsubmit="return confirm('Delete this expense?');">
+                    <button type="submit" class="btn btn-danger btn-sm">Del</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr style="border-top:2px solid var(--green-primary);">
+            <td colspan="6"><strong>Total</strong></td>
+            <td style="text-align:right;">
+                <strong>£{{ '%.2f'|format(total) }}</strong>
+            </td>
+            <td></td>
+        </tr>
+    </tfoot>
+</table>
+{% else %}
+<div class="card" style="max-width:500px;">
+    <div class="card-title">No expenses recorded</div>
+    <p style="margin:8px 0 16px;">
+        Record your business expenses here — water, broadband, insurance,
+        repairs, wages, and any other allowable costs.
+    </p>
+    <a href="{{ url_for('expenses.add') }}" class="btn btn-primary">+ Add Expense</a>
+</div>
+{% endif %}
+{% endblock %}
