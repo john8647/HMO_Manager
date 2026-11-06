@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Admin Panel</h1>
+</div>
+
+<!-- Stats -->
+<div class="card-grid" style="margin-bottom:28px;">
+    <div class="card">
+        <div class="card-title">Total Users</div>
+        <div class="card-value">{{ stats.total_users }}</div>
+    </div>
+    <div class="card">
+        <div class="card-title">Landlord Accounts</div>
+        <div class="card-value">{{ stats.total_landlords }}</div>
+    </div>
+    <div class="card">
+        <div class="card-title">Tenant Portals</div>
+        <div class="card-value">{{ stats.total_tenants }}</div>
+    </div>
+    <div class="card">
+        <div class="card-title">Properties</div>
+        <div class="card-value">{{ stats.total_properties }}</div>
+    </div>
+    <div class="card">
+        <div class="card-title">Tenant Records</div>
+        <div class="card-value">{{ stats.total_tenants_db }}</div>
+    </div>
+</div>
+
+<!-- Admin accounts -->
+<div class="flex-between" style="margin-bottom:12px;">
+    <h2>Administrator Accounts</h2>
+</div>
+<table style="margin-bottom:32px;">
+    <thead>
+        <tr>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in admins %}
+        <tr>
+            <td><strong>{{ user.username }}</strong>
+                {% if user.id == current_user.id %}
+                    <span class="badge badge-green" style="margin-left:6px;">
+                        You
+                    </span>
+                {% endif %}
+            </td>
+            <td>{{ user.email }}</td>
+            <td>
+                {% if user.is_active %}
+                    <span class="badge badge-green">Active</span>
+                {% else %}
+                    <span class="badge badge-grey">Inactive</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if user.id != current_user.id %}
+                <a href="{{ url_for('admin.edit_user', user_id=user.id) }}"
+                   class="btn btn-secondary btn-sm">Edit</a>
+                {% else %}
+                <a href="{{ url_for('auth.change_password') }}"
+                   class="btn btn-secondary btn-sm">Change Password</a>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Landlord accounts -->
+<div class="flex-between" style="margin-bottom:12px;">
+    <h2>Landlord Accounts</h2>
+    <a href="{{ url_for('admin.add_landlord') }}" class="btn btn-primary">
+        + Add Landlord
+    </a>
+</div>
+
+{% if landlords %}
+<table style="margin-bottom:32px;">
+    <thead>
+        <tr>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Properties</th>
+            <th>Tenants</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in landlords %}
+        <tr>
+            <td><strong>{{ user.username }}</strong></td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.property_count }}</td>
+            <td>{{ user.tenant_count }}</td>
+            <td>
+                {% if user.is_active %}
+                    <span class="badge badge-green">Active</span>
+                {% else %}
+                    <span class="badge badge-grey">Inactive</span>
+                {% endif %}
+            </td>
+            <td>
+                <a href="{{ url_for('admin.edit_user', user_id=user.id) }}"
+                   class="btn btn-secondary btn-sm">Edit</a>
+                <form method="POST"
+                      action="{{ url_for('admin.toggle_user', user_id=user.id) }}"
+                      style="display:inline;">
+                    <button type="submit" class="btn btn-secondary btn-sm">
+                        {{ 'Deactivate' if user.is_active else 'Activate' }}
+                    </button>
+                </form>
+                <form method="POST"
+                      action="{{ url_for('admin.delete_user', user_id=user.id) }}"
+                      style="display:inline;"
+                      onsubmit="return confirm(
+                          'Delete {{ user.username }}? This cannot be undone.');">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card" style="max-width:500px; margin-bottom:32px;">
+    <div class="card-title">No landlord accounts yet</div>
+    <p style="margin:8px 0 16px;">
+        Create a landlord account so they can log in and manage their
+        own properties, tenants and finances independently.
+    </p>
+    <a href="{{ url_for('admin.add_landlord') }}" class="btn btn-primary">
+        + Add Landlord
+    </a>
+</div>
+{% endif %}
+
+<!-- Tenant portal accounts -->
+<div class="flex-between" style="margin-bottom:12px;">
+    <h2>Tenant Portal Accounts</h2>
+    <a href="{{ url_for('admin.invite_tenant') }}" class="btn btn-primary">
+        + Invite Tenant
+    </a>
+</div>
+
+<p class="text-muted" style="font-size:14px; margin-bottom:16px;">
+    Tenant portal accounts give a tenant read-only access to their own
+    invoices, payments, contract, and messages.
+    They are linked to an existing tenant record.
+</p>
+
+{% if tenant_users %}
+<table style="margin-bottom:32px;">
+    <thead>
+        <tr>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Linked Tenant</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in tenant_users %}
+        <tr>
+            <td><strong>{{ user.username }}</strong></td>
+            <td>{{ user.email }}</td>
+            <td>
+                {% if user.linked_tenant %}
+                    <a href="{{ url_for('tenants.view',
+                               tenant_id=user.linked_tenant.id) }}">
+                        {{ user.linked_tenant.full_name }}
+                    </a>
+                {% else %}
+                    <span class="badge badge-red">Unlinked</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if user.is_active %}
+                    <span class="badge badge-green">Active</span>
+                {% else %}
+                    <span class="badge badge-grey">Inactive</span>
+                {% endif %}
+            </td>
+            <td>
+                <a href="{{ url_for('admin.edit_user', user_id=user.id) }}"
+                   class="btn btn-secondary btn-sm">Edit</a>
+                <form method="POST"
+                      action="{{ url_for('admin.toggle_user', user_id=user.id) }}"
+                      style="display:inline;">
+                    <button type="submit" class="btn btn-secondary btn-sm">
+                        {{ 'Deactivate' if user.is_active else 'Activate' }}
+                    </button>
+                </form>
+                <form method="POST"
+                      action="{{ url_for('admin.delete_user', user_id=user.id) }}"
+                      style="display:inline;"
+                      onsubmit="return confirm('Delete this portal account?');">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card" style="max-width:500px; margin-bottom:32px;">
+    <div class="card-title">No tenant portal accounts yet</div>
+    <p style="margin:8px 0 16px;">
+        Invite a tenant to create a portal account so they can view
+        their own invoices and payment history.
+    </p>
+    <a href="{{ url_for('admin.invite_tenant') }}" class="btn btn-primary">
+        + Invite Tenant
+    </a>
+</div>
+{% endif %}
+
+<!-- System info -->
+<div style="margin-top:32px; border-top:1px solid var(--border); padding-top:20px;">
+    <h2>System</h2>
+    <table style="max-width:400px;">
+        <tr>
+            <td style="color:var(--text-secondary); width:160px;">Logged in as</td>
+            <td><strong>{{ current_user.username }}</strong> ({{ current_user.role }})</td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Register new user</td>
+            <td>
+                <a href="{{ url_for('auth.register') }}">Registration page</a>
+            </td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Change password</td>
+            <td>
+                <a href="{{ url_for('auth.change_password') }}">
+                    Change your password
+                </a>
+            </td>
+        </tr>
+    </table>
+</div>
+{% endblock %}

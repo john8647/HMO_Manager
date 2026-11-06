@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Add Landlord Account{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Add Landlord Account</h1>
+    <a href="{{ url_for('admin.index') }}" class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<p class="text-muted">
+    Create a landlord login. The landlord will be able to manage their own
+    properties, tenants, bills, invoices, and finances independently.
+    They will only see data belonging to their own account.
+</p>
+
+<div style="max-width:480px; margin-top:20px;">
+<form method="POST" action="{{ url_for('admin.add_landlord') }}">
+
+    <div class="form-group">
+        <label for="username">
+            Username <span style="color:var(--error);">*</span>
+        </label>
+        <input type="text" id="username" name="username"
+               value="{{ username or '' }}"
+               placeholder="e.g. jsmith"
+               required autofocus>
+        <span class="form-hint">Used to log in. No spaces.</span>
+    </div>
+
+    <div class="form-group">
+        <label for="email">
+            Email Address <span style="color:var(--error);">*</span>
+        </label>
+        <input type="email" id="email" name="email"
+               value="{{ email or '' }}" required>
+    </div>
+
+    <div class="form-group">
+        <label for="password">
+            Password <span style="color:var(--error);">*</span>
+        </label>
+        <input type="password" id="password" name="password" required>
+        <span class="form-hint">Minimum 8 characters.</span>
+    </div>
+
+    <div class="form-group">
+        <label for="confirm_password">
+            Confirm Password <span style="color:var(--error);">*</span>
+        </label>
+        <input type="password" id="confirm_password"
+               name="confirm_password" required>
+    </div>
+
+    <div class="card" style="margin-bottom:20px; font-size:14px;">
+        <strong>What a landlord account can do:</strong>
+        <ul style="margin:8px 0 0 20px; line-height:2.2;">
+            <li>Add and manage their own properties and rooms</li>
+            <li>Add tenants, contracts, and deposits</li>
+            <li>Enter bills and generate invoices</li>
+            <li>Import bank statements and manage transactions</li>
+            <li>Record expenses and export to QuickFile</li>
+            <li>Manage compliance documents and tasks</li>
+        </ul>
+        <strong style="display:block; margin-top:10px;">
+            What they cannot do:
+        </strong>
+        <ul style="margin:8px 0 0 20px; line-height:2.2;">
+            <li>See other landlords' data</li>
+            <li>Access the admin panel</li>
+            <li>Create or manage other user accounts</li>
+        </ul>
+    </div>
+
+    <div class="mt-2">
+        <button type="submit" class="btn btn-primary">Create Landlord Account</button>
+        <a href="{{ url_for('admin.index') }}"
+           class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+    </div>
+
+</form>
+</div>
+{% endblock %}

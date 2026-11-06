@@ -6,9 +6,15 @@ from app import db
 from app.models import Bill, BillTenantShare, Property, TenantContract, Tenant
 from app.bills.calculator import calculate_shares, inclusive_days
 
+# This blueprint groups all bill-related pages and API actions under a shared
+# prefix (for example, /bills/... in the app). The routes below handle viewing,
+# creating, deleting, and listing bills for a property.
 bills_bp = Blueprint('bills', __name__)
 
 
+# Helper used by several routes to verify that a bill belongs to the currently
+# logged-in user before returning it. This prevents a user from viewing or
+# deleting another owner's records.
 def get_bill_or_404(bill_id):
     bill = Bill.query.join(Property).filter(
         Bill.id == bill_id,
@@ -17,6 +23,9 @@ def get_bill_or_404(bill_id):
     return bill
 
 
+# Shows the main bill dashboard. Admin users can see all properties; regular
+# users only see properties they own. It also fetches the most recent bills so
+# the page can display a quick overview of activity.
 @bills_bp.route('/')
 @login_required
 def index():
@@ -27,7 +36,7 @@ def index():
             user_id=current_user.id
         ).order_by(Property.address_line1).all()
 
-    # Get recent bills per property
+    # Pull the newest bills for the properties the user is allowed to access.
     property_ids = [p.id for p in properties]
     recent_bills = Bill.query.filter(
         Bill.property_id.in_(property_ids)
@@ -38,6 +47,9 @@ def index():
                            recent_bills=recent_bills)
 
 
+# Handles bill creation. On GET, it shows the form with the list of properties
+# the user can assign a bill to. On POST, it validates form data, creates the
+# Bill record, and calculates tenant cost shares for the billing period.
 @bills_bp.route('/add', methods=['GET', 'POST'])
 @login_required
 def add():
@@ -49,6 +61,7 @@ def add():
         ).order_by(Property.address_line1).all()
 
     if request.method == 'POST':
+        # Read all fields from the submitted form and normalize them.
         property_id    = request.form.get('property_id', '').strip()
         bill_type      = request.form.get('bill_type', '').strip()
         amount_str     = request.form.get('amount', '').strip()
@@ -56,6 +69,7 @@ def add():
         period_end_str   = request.form.get('period_end', '').strip()
         notes          = request.form.get('notes', '').strip()
 
+        # Require all critical values before continuing.
         errors = []
         if not property_id:
             errors.append('Property is required.')
@@ -73,6 +87,7 @@ def add():
                 flash(e, 'error')
             return render_template('bills/add.html', properties=properties)
 
+        # Parse values carefully so bad input does not reach the database.
         try:
             amount = Decimal(amount_str)
             period_start = datetime.strptime(period_start_str, '%Y-%m-%d').date()
@@ -85,8 +100,10 @@ def add():
             flash('Period end date must be after start date.', 'error')
             return render_template('bills/add.html', properties=properties)
 
+        # Count the total days in the period so the bill can be prorated if needed.
         days_in_period = inclusive_days(period_start, period_end)
 
+        # Save the base bill record first so it gets an ID for the tenant-share rows.
         bill = Bill(
             property_id=int(property_id),
             user_id=current_user.id,
@@ -102,14 +119,15 @@ def add():
         db.session.add(bill)
         db.session.flush()  # get bill.id before commit
 
-        # Find all active contracts that overlap with the billing period
+        # Find tenant contracts relevant to this billing period. We include both
+        # active contracts and contracts that ended during the period so the bill
+        # can still be shared fairly across any tenant who occupied the property.
         overlapping_contracts = TenantContract.query.filter(
             TenantContract.property_id == int(property_id),
             TenantContract.is_active == True,
             TenantContract.start_date <= period_end,
         ).all()
 
-        # Also include contracts that ended within or after the period
         ended_contracts = TenantContract.query.filter(
             TenantContract.property_id == int(property_id),
             TenantContract.is_active == False,
@@ -124,7 +142,8 @@ def add():
             db.session.commit()
             return redirect(url_for('bills.view', bill_id=bill.id))
 
-        # Build tenant list for calculator
+        # Prepare the tenant data structure expected by the billing calculator,
+        # which computes each tenant's pro-rata share based on overlap days.
         tenant_list = []
         for contract in all_contracts:
             tenant_list.append({
@@ -134,9 +153,11 @@ def add():
                 'contract_end':   contract.end_date,
             })
 
-        # Calculate pro-rata shares
+        # calculate_shares() does the actual math: it prorates the bill across
+        # each tenant's days in the billing period.
         shares = calculate_shares(amount, tenant_list, period_start, period_end)
 
+        # Save one BillTenantShare row per tenant with a positive occupancy period.
         for share in shares:
             if share['days_present'] > 0:
                 bts = BillTenantShare(
@@ -155,19 +176,23 @@ def add():
     return render_template('bills/add.html', properties=properties)
 
 
+# Displays one bill plus all tenant-share allocations for that bill. We enrich
+# each share with the tenant object so the template can print the tenant name.
 @bills_bp.route('/<int:bill_id>')
 @login_required
 def view(bill_id):
     bill = get_bill_or_404(bill_id)
     shares = BillTenantShare.query.filter_by(bill_id=bill.id).all()
 
-    # Attach tenant names
     for share in shares:
         share.tenant = Tenant.query.get(share.tenant_id)
 
     return render_template('bills/view.html', bill=bill, shares=shares)
 
 
+# Deletes a bill after confirming the user owns it. This removes the bill record
+# itself, and the database relationship will also remove related share rows if
+# configured by the schema.
 @bills_bp.route('/<int:bill_id>/delete', methods=['POST'])
 @login_required
 def delete(bill_id):
@@ -178,6 +203,9 @@ def delete(bill_id):
     return redirect(url_for('bills.index'))
 
 
+# Lists all bills for a single property, ordered newest-first. This is useful for
+# property-specific billing history and lets managers drill into a property's bill
+# ledger without seeing unrelated records.
 @bills_bp.route('/property/<int:property_id>')
 @login_required
 def by_property(property_id):

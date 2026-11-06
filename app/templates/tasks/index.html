@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block title %}Tasks{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Tasks</h1>
+    <a href="{{ url_for('tasks.add') }}" class="btn btn-primary">+ New Task</a>
+</div>
+
+<!-- Summary cards -->
+<div class="card-grid" style="margin-bottom:24px;">
+    <div class="card" style="border-top-color:var(--error);">
+        <div class="card-title">Overdue</div>
+        <div class="card-value" style="color:var(--error);">{{ counts.overdue }}</div>
+        <div class="card-sub">Past due date</div>
+    </div>
+    <div class="card" style="border-top-color:#d4351c;">
+        <div class="card-title">Urgent</div>
+        <div class="card-value" style="color:var(--error);">{{ counts.urgent }}</div>
+        <div class="card-sub">Open urgent tasks</div>
+    </div>
+    <div class="card">
+        <div class="card-title">Open</div>
+        <div class="card-value">{{ counts.open }}</div>
+        <div class="card-sub">Awaiting action</div>
+    </div>
+    <div class="card" style="border-top-color:#f47738;">
+        <div class="card-title">In Progress</div>
+        <div class="card-value">{{ counts.in_progress }}</div>
+        <div class="card-sub">Currently active</div>
+    </div>
+    <div class="card" style="border-top-color:#fd0;">
+        <div class="card-title">Reminders</div>
+        <div class="card-value">{{ counts.reminders }}</div>
+        <div class="card-sub">Scheduled reminders</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px;
+            align-items:center;">
+
+    <!-- Status filter -->
+    <div style="display:flex; gap:4px;">
+        {% for val, label in statuses %}
+        <a href="{{ url_for('tasks.index', status=val,
+                   category=category_filter, priority=priority_filter,
+                   property_id=property_filter) }}"
+           class="btn btn-sm
+           {% if status_filter == val %}btn-primary{% else %}btn-secondary{% endif %}">
+            {{ label }}
+        </a>
+        {% endfor %}
+        <a href="{{ url_for('tasks.index', status='all') }}"
+           class="btn btn-sm
+           {% if status_filter == 'all' %}btn-primary{% else %}btn-secondary{% endif %}">
+            All
+        </a>
+    </div>
+
+    <span style="color:var(--border);">|</span>
+
+    <!-- Category filter -->
+    <select onchange="applyFilter('category', this.value)"
+            style="font-size:13px; padding:4px 8px; max-width:180px;">
+        <option value="">All categories</option>
+        {% for val, label, _ in categories %}
+        <option value="{{ val }}"
+            {% if category_filter == val %}selected{% endif %}>
+            {{ label }}
+        </option>
+        {% endfor %}
+    </select>
+
+    <!-- Priority filter -->
+    <select onchange="applyFilter('priority', this.value)"
+            style="font-size:13px; padding:4px 8px; max-width:140px;">
+        <option value="">All priorities</option>
+        {% for val, label, _ in priorities %}
+        <option value="{{ val }}"
+            {% if priority_filter == val %}selected{% endif %}>
+            {{ label }}
+        </option>
+        {% endfor %}
+    </select>
+
+    <!-- Property filter -->
+    <select onchange="applyFilter('property_id', this.value)"
+            style="font-size:13px; padding:4px 8px; max-width:200px;">
+        <option value="">All properties</option>
+        {% for prop in properties %}
+        <option value="{{ prop.id }}"
+            {% if property_filter == prop.id|string %}selected{% endif %}>
+            {{ prop.property_ref or prop.address_line1 }}
+        </option>
+        {% endfor %}
+    </select>
+
+</div>
+
+<!-- Task list -->
+{% if tasks %}
+<div style="display:flex; flex-direction:column; gap:10px;">
+    {% for task in tasks %}
+    <div class="card" style="
+        border-top-color:
+        {% if task.is_overdue %}var(--error)
+        {% elif task.priority == 'urgent' %}var(--error)
+        {% elif task.priority == 'high' %}#f47738
+        {% elif task.due_soon %}#fd0
+        {% elif task.category == 'reminder' %}#fd0
+        {% else %}var(--green-primary){% endif %};
+        padding:14px 18px;">
+
+        <div style="display:flex; justify-content:space-between;
+                    align-items:flex-start; flex-wrap:wrap; gap:8px;">
+
+            <!-- Left: title and badges -->
+            <div style="flex:1; min-width:200px;">
+                <div style="display:flex; align-items:center;
+                            gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+                    <strong style="font-size:16px;">{{ task.title }}</strong>
+                    {% if task.is_overdue %}
+                        <span class="badge badge-red">OVERDUE</span>
+                    {% endif %}
+                    {% if task.due_soon and not task.is_overdue %}
+                        <span class="badge badge-yellow">Due soon</span>
+                    {% endif %}
+                </div>
+
+                <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+                    <!-- Category -->
+                    <span class="badge {{ task.cat_colour }}">
+                        {% for val, label, _ in categories %}
+                            {% if val == task.category %}{{ label }}{% endif %}
+                        {% endfor %}
+                    </span>
+                    <!-- Priority -->
+                    <span class="badge {{ task.pri_colour }}">
+                        {{ task.priority|title if task.priority else '—' }}
+                    </span>
+                    <!-- Repeat -->
+                    {% if task.repeat and task.repeat != 'none' %}
+                        <span class="badge badge-grey">
+                            &#8635; {{ task.repeat|title }}
+                        </span>
+                    {% endif %}
+                    <!-- Time bound -->
+                    {% if task.time_bound %}
+                        <span class="badge badge-grey">Time-bound</span>
+                    {% endif %}
+                    <!-- Status -->
+                    {% if task.status == 'in_progress' %}
+                        <span class="badge badge-yellow">In Progress</span>
+                    {% elif task.status == 'complete' %}
+                        <span class="badge badge-green">Complete</span>
+                    {% elif task.status == 'cancelled' %}
+                        <span class="badge badge-grey">Cancelled</span>
+                    {% endif %}
+                </div>
+
+                {% if task.description %}
+                <p style="font-size:14px; color:var(--text-secondary);
+                           margin:0 0 8px;">
+                    {{ task.description }}
+                </p>
+                {% endif %}
+
+                <!-- Links -->
+                <div style="font-size:13px; color:var(--text-secondary);
+                            display:flex; gap:12px; flex-wrap:wrap;">
+                    {% if task.property %}
+                        <span>&#127968;
+                            {{ task.property.property_ref
+                               or task.property.address_line1 }}
+                        </span>
+                    {% endif %}
+                    {% if task.room %}
+                        <span>&#128065; {{ task.room.room_name }}</span>
+                    {% endif %}
+                    {% if task.tenant %}
+                        <span>&#128100; {{ task.tenant.full_name }}</span>
+                    {% endif %}
+                    {% if task.due_date %}
+                        <span {% if task.is_overdue %}
+                                  style="color:var(--error); font-weight:600;"
+                              {% endif %}>
+                            &#128197;
+                            {{ task.due_date.strftime('%d %b %Y') }}
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Right: actions -->
+            <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:flex-start;">
+                <a href="{{ url_for('tasks.edit', task_id=task.id) }}"
+                   class="btn btn-secondary btn-sm">Edit</a>
+
+                {% if task.status not in ('complete', 'cancelled') %}
+                <form method="POST"
+                      action="{{ url_for('tasks.complete', task_id=task.id) }}"
+                      style="display:inline;">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        &#10003; Complete
+                    </button>
+                </form>
+
+                <form method="POST"
+                      action="{{ url_for('tasks.cancel', task_id=task.id) }}"
+                      style="display:inline;"
+                      onsubmit="return confirm('Cancel this task?');">
+                    <button type="submit" class="btn btn-secondary btn-sm">
+                        Cancel
+                    </button>
+                </form>
+                {% endif %}
+
+                <form method="POST"
+                      action="{{ url_for('tasks.delete', task_id=task.id) }}"
+                      style="display:inline;"
+                      onsubmit="return confirm('Delete this task?');">
+                    <button type="submit" class="btn btn-danger btn-sm">Del</button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="card" style="max-width:500px;">
+    <div class="card-title">No tasks found</div>
+    <p style="margin:8px 0 16px;">
+        {% if status_filter != 'all' %}
+            No {{ status_filter }} tasks.
+            <a href="{{ url_for('tasks.index', status='all') }}">
+                View all tasks
+            </a> or
+        {% endif %}
+        <a href="{{ url_for('tasks.add') }}">create a new task</a>.
+    </p>
+</div>
+{% endif %}
+
+<script>
+function applyFilter(key, value) {
+    const url = new URL(window.location.href);
+    if (value) {
+        url.searchParams.set(key, value);
+    } else {
+        url.searchParams.delete(key);
+    }
+    window.location.href = url.toString();
+}
+</script>
+{% endblock %}

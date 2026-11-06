@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}New Task{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>New Task</h1>
+    <a href="{{ url_for('tasks.index') }}" class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<form method="POST" action="{{ url_for('tasks.add') }}">
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:0 32px; max-width:860px;">
+
+<!-- Left column -->
+<div>
+    <h2>Task Details</h2>
+
+    <div class="form-group">
+        <label for="title">Title <span style="color:var(--error);">*</span></label>
+        <input type="text" id="title" name="title"
+               value="{{ request.form.get('title', prefill.title) }}"
+               placeholder="e.g. Fix leaking tap in Room 3"
+               required autofocus>
+    </div>
+
+    <div class="form-group">
+        <label for="description">Description / Notes</label>
+        <textarea id="description" name="description" rows="3"
+                  placeholder="Additional details, instructions or context...">{{ request.form.get('description', prefill.description) }}</textarea>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+            <label for="category">Category</label>
+            <select id="category" name="category">
+                <option value="">— Select —</option>
+                {% for val, label, desc in categories %}
+                <option value="{{ val }}"
+                    {% if request.form.get('category', prefill.category) == val %}
+                        selected{% endif %}>
+                    {{ label }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="priority">Priority</label>
+            <select id="priority" name="priority">
+                {% for val, label, desc in priorities %}
+                <option value="{{ val }}"
+                    {% if request.form.get('priority',
+                           prefill.get('priority','medium')) == val %}
+                        selected{% endif %}>
+                    {{ label }} — {{ desc }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+            <label for="due_date">Due Date</label>
+            <input type="date" id="due_date" name="due_date"
+                   value="{{ request.form.get('due_date','') }}">
+            <span class="form-hint">Leave blank for ongoing tasks.</span>
+        </div>
+
+        <div class="form-group">
+            <label for="repeat">Repeat Schedule</label>
+            <select id="repeat" name="repeat">
+                {% for val, label in repeat_options %}
+                <option value="{{ val }}"
+                    {% if request.form.get('repeat','none') == val %}selected{% endif %}>
+                    {{ label }}
+                </option>
+                {% endfor %}
+            </select>
+            <span class="form-hint">
+                Repeating tasks auto-schedule the next occurrence on completion.
+            </span>
+        </div>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+        <input type="checkbox" id="time_bound" name="time_bound"
+               style="width:auto;"
+               {% if request.form.get('time_bound') %}checked{% endif %}>
+        <label for="time_bound" style="font-weight:normal; margin:0;">
+            Time-bound — this task has a hard deadline
+        </label>
+    </div>
+
+</div>
+
+<!-- Right column -->
+<div>
+    <h2>Link To</h2>
+    <p class="text-muted" style="font-size:14px; margin-bottom:16px;">
+        Optionally link this task to a specific property, room, or tenant.
+    </p>
+
+    <div class="form-group">
+        <label for="property_id">Property</label>
+        <select id="property_id" name="property_id"
+                onchange="loadRooms(this.value)">
+            <option value="">— Not property-specific —</option>
+            {% for prop in properties %}
+            <option value="{{ prop.id }}"
+                {% if request.form.get('property_id',
+                       prefill.get('property_id','')) == prop.id|string %}
+                    selected{% endif %}>
+                {{ prop.property_ref or prop.address_line1 }}
+                — {{ prop.address_line1 }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="room_id">Room</label>
+        <select id="room_id" name="room_id">
+            <option value="">— Select room —</option>
+            {% for room in rooms %}
+            <option value="{{ room.id }}">{{ room.room_name }}</option>
+            {% endfor %}
+        </select>
+        <span class="form-hint">Select a property first to load rooms.</span>
+    </div>
+
+    <div class="form-group">
+        <label for="tenant_id">Tenant</label>
+        <select id="tenant_id" name="tenant_id">
+            <option value="">— Not tenant-specific —</option>
+            {% for tenant in tenants %}
+            <option value="{{ tenant.id }}"
+                {% if request.form.get('tenant_id','') == tenant.id|string %}
+                    selected{% endif %}>
+                {{ tenant.full_name }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Category guide -->
+    <div class="card" style="margin-top:8px; font-size:13px;">
+        <div class="card-title">Category Guide</div>
+        {% for val, label, desc in categories %}
+        <div style="margin-top:8px;">
+            <strong>{{ label }}</strong> — {{ desc }}
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+</div>
+
+<div class="mt-3">
+    <button type="submit" class="btn btn-primary">Create Task</button>
+    <a href="{{ url_for('tasks.index') }}"
+       class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+</div>
+
+</form>
+
+<script>
+function loadRooms(propertyId) {
+    const sel = document.getElementById('room_id');
+    sel.innerHTML = '<option value="">— Loading... —</option>';
+    if (!propertyId) {
+        sel.innerHTML = '<option value="">— Select room —</option>';
+        return;
+    }
+    fetch(`/tasks/rooms/${propertyId}`)
+        .then(r => r.json())
+        .then(rooms => {
+            sel.innerHTML = '<option value="">— Select room —</option>';
+            rooms.forEach(r => {
+                sel.innerHTML +=
+                    `<option value="${r.id}">${r.name}</option>`;
+            });
+        })
+        .catch(() => {
+            sel.innerHTML = '<option value="">— Could not load rooms —</option>';
+        });
+}
+</script>
+{% endblock %}

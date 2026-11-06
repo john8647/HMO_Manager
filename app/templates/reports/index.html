@@ -25,9 +25,9 @@
     </code>
     <p style="font-size:13px; margin-top:12px; color:var(--text-secondary);">
         Each tenant payment is split out by type using your auto-match rules.
-        For example if JIJIN JOSE paid rent and bills in one transfer but you
+        For example if Paul Woods paid rent and bills in one transfer but you
         split it during import, the export produces two lines:
-        <em>JIJIN JOSE Rent</em> and <em>JIJIN JOSE Bills</em>.
+        <em>Paul Woods Rent</em> and <em>Paul Woods Bills</em>.
     </p>
     <p style="font-size:13px; margin-top:6px; color:var(--text-secondary);">
         Expenses for the selected property appear as debit rows with their
@@ -77,7 +77,7 @@
         <div class="form-group">
             <label for="sort_code">Sort Code</label>
             <input type="text" id="sort_code" name="sort_code"
-                   placeholder="e.g. 11-02-12"
+                   placeholder="e.g. 11-22-33"
                    value="{{ request.args.get('sort_code','') }}">
             <span class="form-hint">
                 Your bank sort code — prefixed with ' in the export.
@@ -86,7 +86,7 @@
         <div class="form-group">
             <label for="account_number">Account Number</label>
             <input type="text" id="account_number" name="account_number"
-                   placeholder="e.g. 12045867"
+                   placeholder="e.g. 12345678"
                    value="{{ request.args.get('account_number','') }}">
         </div>
     </div>

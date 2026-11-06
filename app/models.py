@@ -384,6 +384,9 @@ class Task(db.Model):
     due_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
+    category = db.Column(db.String(30))
+    repeat = db.Column(db.String(20), default='none')
+    time_bound = db.Column(db.Boolean, default=False)
 
 
 class Message(db.Model):

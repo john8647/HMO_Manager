@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Invite Tenant{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Invite Tenant to Portal</h1>
+    <a href="{{ url_for('admin.index') }}" class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<p class="text-muted">
+    Create a portal login for an existing tenant. They will be able to view
+    their own invoices, payment history, contract, and send messages.
+    They cannot see any other tenant's data or any financial management tools.
+</p>
+
+<div style="max-width:480px; margin-top:20px;">
+<form method="POST" action="{{ url_for('admin.invite_tenant') }}">
+
+    <div class="form-group">
+        <label for="tenant_id">
+            Tenant Record <span style="color:var(--error);">*</span>
+        </label>
+        <select id="tenant_id" name="tenant_id" required>
+            <option value="">— Select tenant —</option>
+            {% for tenant in unlinked_tenants %}
+            <option value="{{ tenant.id }}"
+                {% if selected_tenant_id == tenant.id|string %}selected{% endif %}>
+                {{ tenant.full_name }}
+                {% set contract = tenant.contracts.filter_by(
+                    is_active=True).first() %}
+                {% if contract %}
+                    — {{ contract.property.address_line1 }},
+                    {{ contract.room.room_name }}
+                {% endif %}
+            </option>
+            {% endfor %}
+        </select>
+        <span class="form-hint">
+            Only tenants without an existing portal account are shown.
+        </span>
+    </div>
+
+    <div class="form-group">
+        <label for="username">
+            Username <span style="color:var(--error);">*</span>
+        </label>
+        <input type="text" id="username" name="username"
+               value="{{ username or '' }}"
+               placeholder="e.g. jjose or john.jose"
+               required>
+        <span class="form-hint">
+            Suggest using firstname.lastname or first initial + surname.
+            The tenant uses this to log in.
+        </span>
+    </div>
+
+    <div class="form-group">
+        <label for="email">
+            Email Address <span style="color:var(--error);">*</span>
+        </label>
+        <input type="email" id="email" name="email"
+               value="{{ email or '' }}" required>
+        <span class="form-hint">
+            Use the tenant's email address from their tenant record.
+        </span>
+    </div>
+
+    <div class="form-group">
+        <label for="password">
+            Temporary Password <span style="color:var(--error);">*</span>
+        </label>
+        <input type="password" id="password" name="password" required>
+        <span class="form-hint">
+            Minimum 8 characters. Share this with the tenant securely
+            and ask them to change it on first login.
+        </span>
+    </div>
+
+    <div class="form-group">
+        <label for="confirm_password">
+            Confirm Password <span style="color:var(--error);">*</span>
+        </label>
+        <input type="password" id="confirm_password"
+               name="confirm_password" required>
+    </div>
+
+    <div class="card" style="margin-bottom:20px; font-size:14px;">
+        <strong>What a tenant portal account can see:</strong>
+        <ul style="margin:8px 0 0 20px; line-height:2.2;">
+            <li>Their own invoices and payment history</li>
+            <li>Their current and past contracts</li>
+            <li>Their deposit record</li>
+            <li>Messages from the landlord</li>
+            <li>Raise maintenance tasks</li>
+        </ul>
+        <strong style="display:block; margin-top:10px;">
+            What they cannot see:
+        </strong>
+        <ul style="margin:8px 0 0 20px; line-height:2.2;">
+            <li>Other tenants' data</li>
+            <li>Landlord financial records or expenses</li>
+            <li>Any management or admin tools</li>
+        </ul>
+    </div>
+
+    <div class="mt-2">
+        <button type="submit" class="btn btn-primary">Create Portal Account</button>
+        <a href="{{ url_for('admin.index') }}"
+           class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+    </div>
+
+</form>
+</div>
+{% endblock %}
