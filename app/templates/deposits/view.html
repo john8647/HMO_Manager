@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Deposit — {{ deposit.tenant.full_name }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Deposit — {{ deposit.tenant.full_name }}</h1>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="{{ url_for('deposits.certificate', deposit_id=deposit.id) }}"
+           class="btn btn-primary">&#8595; Download Certificate</a>
+        <a href="{{ url_for('deposits.edit', deposit_id=deposit.id) }}"
+           class="btn btn-secondary">Edit</a>
+        <a href="{{ url_for('deposits.index') }}"
+           class="btn btn-secondary">&larr; All Deposits</a>
+    </div>
+</div>
+
+<!-- Status badge -->
+<div style="margin-bottom:24px;">
+    {% if deposit.status == 'protected' %}
+        <span class="badge badge-green" style="font-size:14px; padding:4px 14px;">
+            Protected
+        </span>
+    {% elif deposit.status == 'pending' %}
+        <span class="badge badge-yellow" style="font-size:14px; padding:4px 14px;">
+            Pending Registration
+        </span>
+    {% elif deposit.status == 'deducting' %}
+        <span class="badge badge-red" style="font-size:14px; padding:4px 14px;">
+            Deductions Being Assessed
+        </span>
+    {% elif deposit.status == 'paid' %}
+        <span class="badge badge-grey" style="font-size:14px; padding:4px 14px;">
+            Returned to Tenant
+        </span>
+    {% elif deposit.status == 'withdrawn' %}
+        <span class="badge badge-red" style="font-size:14px; padding:4px 14px;">
+            Withdrawn — Breach of Contract
+        </span>
+    {% endif %}
+    <span style="margin-left:12px; font-size:13px; color:var(--text-secondary);">
+        Deposit ID: DEP-{{ '%04d'|format(deposit.id) }}
+    </span>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:28px;">
+
+    <!-- Deposit details -->
+    <div class="card">
+        <div class="card-title">Deposit Details</div>
+        <table style="margin:0;">
+            <tr>
+                <td style="color:var(--text-secondary); width:160px;">Tenant</td>
+                <td>
+                    <a href="{{ url_for('tenants.view', tenant_id=deposit.tenant_id) }}">
+                        <strong>{{ deposit.tenant.full_name }}</strong>
+                    </a>
+                </td>
+            </tr>
+            <tr>
+                <td style="color:var(--text-secondary);">Amount</td>
+                <td>
+                    <strong style="font-size:20px;">
+                        £{{ '%.2f'|format(deposit.amount) }}
+                    </strong>
+                </td>
+            </tr>
+            <tr>
+                <td style="color:var(--text-secondary);">Date Received</td>
+                <td>
+                    {{ deposit.date_received.strftime('%d %b %Y')
+                       if deposit.date_received else '—' }}
+                </td>
+            </tr>
+            {% if deposit.contract_id %}
+            <tr>
+                <td style="color:var(--text-secondary);">Contract</td>
+                <td>
+                    {% set contract = deposit.contract %}
+                    {% if contract %}
+                        {{ contract.property.address_line1 }},
+                        {{ contract.room.room_name }}<br>
+                        <span style="font-size:12px; color:var(--text-secondary);">
+                            {{ contract.start_date.strftime('%d %b %Y') }}
+                            {% if contract.end_date %}
+                                → {{ contract.end_date.strftime('%d %b %Y') }}
+                            {% else %}
+                                → ongoing
+                            {% endif %}
+                        </span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
+        </table>
+    </div>
+
+    <!-- DPS details -->
+    <div class="card">
+        <div class="card-title">DPS Registration</div>
+        <table style="margin:0;">
+            <tr>
+                <td style="color:var(--text-secondary); width:160px;">Scheme</td>
+                <td>{{ deposit.dps_scheme or '—' }}</td>
+            </tr>
+            <tr>
+                <td style="color:var(--text-secondary);">Reference No.</td>
+                <td>
+                    <code>{{ deposit.dps_reference or '—' }}</code>
+                </td>
+            </tr>
+            <tr>
+                <td style="color:var(--text-secondary);">Attached File</td>
+                <td>
+                    {% set has_file = deposit.notes and '| file:' in deposit.notes %}
+                    {% if has_file %}
+                        <a href="{{ url_for('deposits.download', deposit_id=deposit.id) }}"
+                           class="btn btn-secondary btn-sm">&#8595; Download</a>
+                    {% else %}
+                        <span class="text-muted">No file attached</span>
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+    </div>
+
+</div>
+
+<!-- Deduction details if applicable -->
+{% if deposit.status in ('deducting', 'paid', 'withdrawn') %}
+<div class="card" style="max-width:600px; margin-bottom:28px;
+     border-top-color:var(--error);">
+    <div class="card-title">Deduction / Return Details</div>
+    <table style="margin:0;">
+        <tr>
+            <td style="color:var(--text-secondary); width:200px;">
+                Early Surrender Accepted
+            </td>
+            <td>
+                {% if deposit.surrender_accepted %}
+                    <span class="badge badge-green">Yes</span>
+                    {% if deposit.surrender_date %}
+                        — agreed surrender date:
+                        {{ deposit.surrender_date.strftime('%d %b %Y') }}
+                    {% endif %}
+                {% else %}
+                    <span class="badge badge-grey">No</span>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Deduction Amount</td>
+            <td>
+                {% if deposit.deduction_amount %}
+                    <strong style="color:var(--error);">
+                        £{{ '%.2f'|format(deposit.deduction_amount) }}
+                    </strong>
+                {% else %}—{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Reason for Deduction</td>
+            <td>{{ deposit.deduction_reason or '—' }}</td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Amount Returned</td>
+            <td>
+                {% if deposit.amount_returned %}
+                    <strong style="color:var(--green-dark);">
+                        £{{ '%.2f'|format(deposit.amount_returned) }}
+                    </strong>
+                {% else %}—{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Date Returned</td>
+            <td>
+                {{ deposit.returned_date.strftime('%d %b %Y')
+                   if deposit.returned_date else '—' }}
+            </td>
+        </tr>
+    </table>
+</div>
+{% endif %}
+
+<!-- Notes -->
+{% if deposit.notes %}
+{% set clean_notes = deposit.notes|replace('| file:' + deposit.notes.split('file:')[-1], '')
+   if '| file:' in (deposit.notes or '') else deposit.notes %}
+{% if clean_notes.strip() %}
+<div class="card" style="max-width:600px; margin-bottom:28px;">
+    <div class="card-title">Notes</div>
+    <p style="margin:0; font-size:14px;">{{ clean_notes.strip() }}</p>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Delete -->
+<div style="margin-top:32px; border-top:1px solid var(--border); padding-top:20px;">
+    <form method="POST"
+          action="{{ url_for('deposits.delete', deposit_id=deposit.id) }}"
+          onsubmit="return confirm('Delete this deposit record? This cannot be undone.');">
+        <button type="submit" class="btn btn-danger btn-sm">Delete Deposit Record</button>
+    </form>
+</div>
+{% endblock %}

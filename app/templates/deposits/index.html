@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Deposits{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Deposits</h1>
+    <a href="{{ url_for('deposits.add') }}" class="btn btn-primary">+ Add Deposit</a>
+</div>
+
+<!-- Summary cards -->
+<div class="card-grid" style="margin-bottom:24px;">
+    <div class="card">
+        <div class="card-title">Total Held</div>
+        <div class="card-value">£{{ '%.2f'|format(total_held) }}</div>
+        <div class="card-sub">Pending + Protected + Deducting</div>
+    </div>
+    <div class="card" style="border-top-color:var(--green-primary);">
+        <div class="card-title">Protected</div>
+        <div class="card-value">{{ counts.protected }}</div>
+        <div class="card-sub">Registered with DPS</div>
+    </div>
+    <div class="card" style="border-top-color:#fd0;">
+        <div class="card-title">Pending</div>
+        <div class="card-value">{{ counts.pending }}</div>
+        <div class="card-sub">Not yet registered</div>
+    </div>
+    <div class="card" style="border-top-color:var(--error);">
+        <div class="card-title">Deducting</div>
+        <div class="card-value">{{ counts.deducting }}</div>
+        <div class="card-sub">Under assessment</div>
+    </div>
+    <div class="card" style="border-top-color:var(--grey-mid);">
+        <div class="card-title">Returned / Withdrawn</div>
+        <div class="card-value">
+            {{ counts.paid + counts.withdrawn }}
+        </div>
+        <div class="card-sub">Closed deposits</div>
+    </div>
+</div>
+
+{% if deposits %}
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Tenant</th>
+            <th>Amount</th>
+            <th>DPS Scheme</th>
+            <th>DPS Reference</th>
+            <th>Date Received</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for dep in deposits %}
+        <tr>
+            <td style="color:var(--text-secondary); font-size:13px;">
+                DEP-{{ '%04d'|format(dep.id) }}
+            </td>
+            <td>
+                <a href="{{ url_for('tenants.view', tenant_id=dep.tenant_id) }}">
+                    {{ dep.tenant.full_name }}
+                </a>
+            </td>
+            <td><strong>£{{ '%.2f'|format(dep.amount) }}</strong></td>
+            <td>{{ dep.dps_scheme or '—' }}</td>
+            <td>
+                <code style="font-size:12px;">
+                    {{ dep.dps_reference or '—' }}
+                </code>
+            </td>
+            <td>
+                {{ dep.date_received.strftime('%d %b %Y')
+                   if dep.date_received else '—' }}
+            </td>
+            <td>
+                {% if dep.status == 'protected' %}
+                    <span class="badge badge-green">Protected</span>
+                {% elif dep.status == 'pending' %}
+                    <span class="badge badge-yellow">Pending</span>
+                {% elif dep.status == 'deducting' %}
+                    <span class="badge badge-red">Deducting</span>
+                {% elif dep.status == 'paid' %}
+                    <span class="badge badge-grey">Returned</span>
+                {% elif dep.status == 'withdrawn' %}
+                    <span class="badge badge-red">Withdrawn</span>
+                {% endif %}
+            </td>
+            <td>
+                <a href="{{ url_for('deposits.view', deposit_id=dep.id) }}"
+                   class="btn btn-secondary btn-sm">View</a>
+                <a href="{{ url_for('deposits.certificate', deposit_id=dep.id) }}"
+                   class="btn btn-primary btn-sm">&#8595; Cert</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card" style="max-width:500px;">
+    <div class="card-title">No deposits recorded</div>
+    <p style="margin:8px 0 16px;">
+        Record tenant deposits here and link them to their DPS scheme.
+    </p>
+    <a href="{{ url_for('deposits.add') }}" class="btn btn-primary">
+        + Add Deposit
+    </a>
+</div>
+{% endif %}
+{% endblock %}

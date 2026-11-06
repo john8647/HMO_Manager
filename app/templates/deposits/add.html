@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Add Deposit{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Add Deposit</h1>
+    <a href="{{ url_for('deposits.index') }}" class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<div style="max-width:580px; margin-top:20px;">
+<form method="POST" action="{{ url_for('deposits.add') }}"
+      enctype="multipart/form-data">
+
+    <div class="form-group">
+        <label for="tenant_id">
+            Tenant <span style="color:var(--error);">*</span>
+        </label>
+        <select id="tenant_id" name="tenant_id" required
+                onchange="loadContracts(this.value)">
+            <option value="">— Select tenant —</option>
+            {% for tenant in tenants %}
+            <option value="{{ tenant.id }}"
+                {% if prefill_tenant == tenant.id|string
+                    or request.form.get('tenant_id') == tenant.id|string %}
+                    selected{% endif %}>
+                {{ tenant.full_name }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="contract_id">Link to Contract</label>
+        <select id="contract_id" name="contract_id">
+            <option value="">— Select contract (optional) —</option>
+            {% for contract in contracts %}
+            <option value="{{ contract.id }}">
+                {{ contract.start_date.strftime('%d %b %Y') }} —
+                {{ contract.property.address_line1 }},
+                {{ contract.room.room_name }}
+                (£{{ '%.2f'|format(contract.monthly_rent) }}/mo)
+            </option>
+            {% endfor %}
+        </select>
+        <span class="form-hint">
+            Select a tenant above to load their contracts.
+        </span>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+            <label for="amount">
+                Deposit Amount (£) <span style="color:var(--error);">*</span>
+            </label>
+            <input type="number" id="amount" name="amount"
+                   step="0.01" min="0.01"
+                   value="{{ request.form.get('amount','') }}" required>
+        </div>
+        <div class="form-group">
+            <label for="date_received">
+                Date Received <span style="color:var(--error);">*</span>
+            </label>
+            <input type="date" id="date_received" name="date_received"
+                   value="{{ request.form.get('date_received','') }}" required>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="status">Status</label>
+        <select id="status" name="status">
+            {% for val, label, desc in statuses %}
+            <option value="{{ val }}"
+                {% if request.form.get('status','pending') == val %}selected{% endif %}>
+                {{ label }} — {{ desc }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <h2 style="margin-top:24px;">DPS Registration</h2>
+
+    <div class="form-group">
+        <label for="dps_scheme">Deposit Protection Scheme</label>
+        <select id="dps_scheme" name="dps_scheme">
+            <option value="">— Not yet registered —</option>
+            {% for company in dps_companies %}
+            <option value="{{ company }}"
+                {% if request.form.get('dps_scheme') == company %}selected{% endif %}>
+                {{ company }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+            <label for="dps_reference">DPS Reference Number</label>
+            <input type="text" id="dps_reference" name="dps_reference"
+                   value="{{ request.form.get('dps_reference','') }}"
+                   placeholder="e.g. DPS123456789">
+        </div>
+        <div class="form-group">
+            <label for="date_protected">Date Protected</label>
+            <input type="date" id="date_protected" name="date_protected"
+                   value="{{ request.form.get('date_protected','') }}">
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="document_file">
+            Attach DPS Certificate (PDF, JPG, PNG)
+        </label>
+        <input type="file" id="document_file" name="document_file"
+               accept=".pdf,.jpg,.jpeg,.png"
+               style="border:2px solid var(--grey-dark); padding:8px;">
+        <span class="form-hint">
+            Upload the DPS confirmation certificate or tenancy deposit receipt.
+        </span>
+    </div>
+
+    <div class="form-group">
+        <label for="notes">Notes</label>
+        <input type="text" id="notes" name="notes"
+               value="{{ request.form.get('notes','') }}"
+               placeholder="e.g. DPS custodial scheme, certificate emailed to tenant">
+    </div>
+
+    <div class="mt-2">
+        <button type="submit" class="btn btn-primary">Save Deposit</button>
+        <a href="{{ url_for('deposits.index') }}"
+           class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+    </div>
+
+</form>
+</div>
+
+<script>
+function loadContracts(tenantId) {
+    const sel = document.getElementById('contract_id');
+    sel.innerHTML = '<option value="">— Loading... —</option>';
+    if (!tenantId) {
+        sel.innerHTML = '<option value="">— Select contract (optional) —</option>';
+        return;
+    }
+    fetch(`/deposits/contracts/${tenantId}`)
+        .then(r => r.json())
+        .then(contracts => {
+            sel.innerHTML =
+                '<option value="">— Select contract (optional) —</option>';
+            contracts.forEach(c => {
+                sel.innerHTML +=
+                    `<option value="${c.id}">${c.label}</option>`;
+            });
+        })
+        .catch(() => {
+            sel.innerHTML =
+                '<option value="">— Could not load contracts —</option>';
+        });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Edit Deposit — {{ deposit.tenant.full_name }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Edit Deposit — {{ deposit.tenant.full_name }}</h1>
+    <a href="{{ url_for('deposits.view', deposit_id=deposit.id) }}"
+       class="btn btn-secondary">&larr; Back</a>
+</div>
+
+<form method="POST"
+      action="{{ url_for('deposits.edit', deposit_id=deposit.id) }}"
+      enctype="multipart/form-data">
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:0 32px; max-width:860px;">
+
+<!-- Left: core details -->
+<div>
+    <h2>Deposit Details</h2>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+            <label for="amount">Amount (£)</label>
+            <input type="number" id="amount" name="amount"
+                   step="0.01" min="0.01"
+                   value="{{ deposit.amount }}" required>
+        </div>
+        <div class="form-group">
+            <label for="date_received">Date Received</label>
+            <input type="date" id="date_received" name="date_received"
+                   value="{{ deposit.date_received.isoformat()
+                              if deposit.date_received else '' }}">
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="contract_id">Linked Contract</label>
+        <select id="contract_id" name="contract_id">
+            <option value="">— No contract linked —</option>
+            {% for contract in contracts %}
+            <option value="{{ contract.id }}"
+                {% if deposit.contract_id == contract.id %}selected{% endif %}>
+                {{ contract.start_date.strftime('%d %b %Y') }} —
+                {{ contract.property.address_line1 }},
+                {{ contract.room.room_name }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="status">Status</label>
+        <select id="status" name="status">
+            {% for val, label, desc in statuses %}
+            <option value="{{ val }}"
+                {% if deposit.status == val %}selected{% endif %}>
+                {{ label }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <h2>DPS Registration</h2>
+
+    <div class="form-group">
+        <label for="dps_scheme">DPS Scheme</label>
+        <select id="dps_scheme" name="dps_scheme">
+            <option value="">— Not registered —</option>
+            {% for company in dps_companies %}
+            <option value="{{ company }}"
+                {% if deposit.dps_scheme == company %}selected{% endif %}>
+                {{ company }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="dps_reference">DPS Reference Number</label>
+        <input type="text" id="dps_reference" name="dps_reference"
+               value="{{ deposit.dps_reference or '' }}">
+    </div>
+
+    <!-- File -->
+    {% set has_file = deposit.notes and '| file:' in deposit.notes %}
+    {% if has_file %}
+    <div class="card" style="margin-bottom:16px; font-size:14px;">
+        <div class="card-title">Current File</div>
+        <a href="{{ url_for('deposits.download', deposit_id=deposit.id) }}"
+           class="btn btn-secondary btn-sm">&#8595; Download</a>
+        <span style="margin-left:8px; font-size:13px; color:var(--text-secondary);">
+            Upload a new file below to replace it.
+        </span>
+    </div>
+    {% endif %}
+
+    <div class="form-group">
+        <label for="document_file">
+            {{ 'Replace' if has_file else 'Attach' }} DPS Certificate
+        </label>
+        <input type="file" id="document_file" name="document_file"
+               accept=".pdf,.jpg,.jpeg,.png"
+               style="border:2px solid var(--grey-dark); padding:8px;">
+    </div>
+
+    <div class="form-group">
+        <label for="notes">Notes</label>
+        <input type="text" id="notes" name="notes"
+               value="{{ deposit.notes.split('| file:')[0].strip()
+                          if deposit.notes and '| file:' in deposit.notes
+                          else (deposit.notes or '') }}">
+    </div>
+</div>
+
+<!-- Right: deduction workflow -->
+<div>
+    <h2>Deduction / Return Workflow</h2>
+    <p class="text-muted" style="font-size:14px; margin-bottom:16px;">
+        Complete this section when the tenancy ends and the deposit
+        is being returned or deductions are being applied.
+    </p>
+
+    <div style="display:flex; align-items:flex-start; gap:10px;
+                margin-bottom:16px;">
+        <input type="checkbox" id="surrender_accepted"
+               name="surrender_accepted" style="width:auto; margin-top:3px;"
+               {% if deposit.surrender_accepted %}checked{% endif %}>
+        <div>
+            <label for="surrender_accepted" style="font-weight:600; margin:0;">
+                Early Surrender Accepted
+            </label>
+            <p style="font-size:13px; color:var(--text-secondary); margin:4px 0 0;">
+                Tick if the landlord agreed to an early end of tenancy.
+                Rent is charged only to the agreed surrender date.
+            </p>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="surrender_date">Agreed Surrender Date</label>
+        <input type="date" id="surrender_date" name="surrender_date"
+               value="{{ deposit.surrender_date.isoformat()
+                          if deposit.surrender_date else '' }}">
+    </div>
+
+    <div class="card" style="margin-bottom:16px; font-size:13px;
+                              border-top-color:var(--error);">
+        <div class="card-title">Deduction Rules</div>
+        <p style="margin:6px 0;">
+            <strong>No early surrender:</strong> Rent continues to end of
+            notice period. Deduct all rent owed + damages + utilities.
+        </p>
+        <p style="margin:6px 0;">
+            <strong>Surrender accepted:</strong> Charge rent to surrender
+            date only, then assess utilities and damages.
+        </p>
+        <p style="margin:6px 0;">
+            Return remainder to tenant after all deductions.
+        </p>
+    </div>
+
+    <div class="form-group">
+        <label for="deduction_amount">Total Deduction Amount (£)</label>
+        <input type="number" id="deduction_amount" name="deduction_amount"
+               step="0.01" min="0"
+               value="{{ deposit.deduction_amount or '' }}"
+               style="max-width:180px;">
+    </div>
+
+    <div class="form-group">
+        <label for="deduction_reason">Reason for Deductions</label>
+        <textarea id="deduction_reason" name="deduction_reason"
+                  rows="3"
+                  placeholder="e.g. Rent owed £200, cleaning £80, damaged door £120">{{ deposit.deduction_reason or '' }}</textarea>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+            <label for="amount_returned">Amount Returned to Tenant (£)</label>
+            <input type="number" id="amount_returned" name="amount_returned"
+                   step="0.01" min="0"
+                   value="{{ deposit.amount_returned or '' }}">
+        </div>
+        <div class="form-group">
+            <label for="returned_date">Date Returned</label>
+            <input type="date" id="returned_date" name="returned_date"
+                   value="{{ deposit.returned_date.isoformat()
+                              if deposit.returned_date else '' }}">
+        </div>
+    </div>
+
+    <!-- Quick calculation helper -->
+    <div class="card" style="font-size:13px;">
+        <div class="card-title">Quick Calculation</div>
+        <table style="margin:0;">
+            <tr>
+                <td style="color:var(--text-secondary);">Deposit held</td>
+                <td>£{{ '%.2f'|format(deposit.amount) }}</td>
+            </tr>
+            {% if deposit.deduction_amount %}
+            <tr>
+                <td style="color:var(--error);">Deductions</td>
+                <td style="color:var(--error);">
+                    − £{{ '%.2f'|format(deposit.deduction_amount) }}
+                </td>
+            </tr>
+            <tr style="border-top:1px solid var(--border);">
+                <td><strong>To return</strong></td>
+                <td>
+                    <strong>
+                        £{{ '%.2f'|format(deposit.amount - deposit.deduction_amount) }}
+                    </strong>
+                </td>
+            </tr>
+            {% endif %}
+        </table>
+    </div>
+</div>
+
+</div>
+
+<div class="mt-3">
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+    <a href="{{ url_for('deposits.view', deposit_id=deposit.id) }}"
+       class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+</div>
+
+</form>
+{% endblock %}

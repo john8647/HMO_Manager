@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+    @page { size: A4; margin: 20mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        font-family: Arial, sans-serif;
+        font-size: 11pt;
+        color: #0b0c0c;
+        line-height: 1.6;
+    }
+    .header {
+        border-bottom: 4px solid #00703c;
+        padding-bottom: 16px;
+        margin-bottom: 28px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+    .logo {
+        font-size: 20pt;
+        font-weight: bold;
+        color: #00703c;
+    }
+    .cert-label {
+        font-size: 16pt;
+        font-weight: bold;
+        text-align: right;
+        color: #0b0c0c;
+    }
+    .cert-id {
+        font-size: 10pt;
+        color: #505a5f;
+        text-align: right;
+    }
+    .section {
+        margin-bottom: 24px;
+    }
+    .section h2 {
+        font-size: 10pt;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #505a5f;
+        margin-bottom: 10px;
+        border-bottom: 1px solid #d8d8d8;
+        padding-bottom: 4px;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    td {
+        padding: 6px 8px 6px 0;
+        font-size: 10pt;
+        vertical-align: top;
+    }
+    .label { color: #505a5f; width: 200px; }
+    .value { font-weight: bold; }
+    .amount-box {
+        background: #e8f5ee;
+        border: 2px solid #00703c;
+        border-radius: 4px;
+        padding: 16px 20px;
+        margin: 20px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .amount-label { font-size: 12pt; color: #005a30; font-weight: bold; }
+    .amount-value { font-size: 24pt; font-weight: bold; color: #005a30; }
+    .status-box {
+        display: inline-block;
+        padding: 4px 16px;
+        border-radius: 20px;
+        font-size: 11pt;
+        font-weight: bold;
+    }
+    .status-protected { background: #e8f5ee; color: #005a30; }
+    .status-pending    { background: #fff7bf; color: #594d00; }
+    .status-other      { background: #f3f2f1; color: #505a5f; }
+    .notice {
+        margin-top: 32px;
+        border: 1px solid #b1b4b6;
+        border-left: 4px solid #00703c;
+        padding: 14px 16px;
+        font-size: 10pt;
+        color: #505a5f;
+    }
+    .footer {
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        font-size: 8pt;
+        color: #b1b4b6;
+        text-align: center;
+        border-top: 1px solid #d8d8d8;
+        padding-top: 6px;
+    }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <div>
+        <div class="logo">HMO Properties</div>
+        <div style="font-size:10pt; color:#505a5f; margin-top:4px;">
+            Tenancy Deposit Certificate
+        </div>
+    </div>
+    <div>
+        <div class="cert-label">DEPOSIT CERTIFICATE</div>
+        <div class="cert-id">DEP-{{ '%04d'|format(deposit.id) }}</div>
+    </div>
+</div>
+
+<!-- Amount -->
+<div class="amount-box">
+    <div class="amount-label">Deposit Amount Held</div>
+    <div class="amount-value">£{{ '%.2f'|format(deposit.amount) }}</div>
+</div>
+
+<!-- Status -->
+<div style="margin-bottom:24px;">
+    <span class="status-box
+        {% if deposit.status == 'protected' %}status-protected
+        {% elif deposit.status == 'pending' %}status-pending
+        {% else %}status-other{% endif %}">
+        {% if deposit.status == 'protected' %}&#10003; Protected
+        {% elif deposit.status == 'pending' %}Pending Registration
+        {% elif deposit.status == 'paid' %}Returned to Tenant
+        {% elif deposit.status == 'withdrawn' %}Retained — Breach of Contract
+        {% elif deposit.status == 'deducting' %}Under Assessment
+        {% endif %}
+    </span>
+</div>
+
+<!-- Tenant details -->
+<div class="section">
+    <h2>Tenant Details</h2>
+    <table>
+        <tr>
+            <td class="label">Full Name</td>
+            <td class="value">{{ deposit.tenant.full_name }}</td>
+        </tr>
+        <tr>
+            <td class="label">Email</td>
+            <td>{{ deposit.tenant.email or '—' }}</td>
+        </tr>
+        {% if deposit.contract %}
+        <tr>
+            <td class="label">Property</td>
+            <td>
+                {{ deposit.contract.property.address_line1 }},
+                {% if deposit.contract.property.address_line2 %}
+                    {{ deposit.contract.property.address_line2 }},
+                {% endif %}
+                {{ deposit.contract.property.postcode }}
+            </td>
+        </tr>
+        <tr>
+            <td class="label">Room</td>
+            <td>{{ deposit.contract.room.room_name }}</td>
+        </tr>
+        <tr>
+            <td class="label">Tenancy Start Date</td>
+            <td>{{ deposit.contract.start_date.strftime('%d %B %Y') }}</td>
+        </tr>
+        {% if deposit.contract.end_date %}
+        <tr>
+            <td class="label">Tenancy End Date</td>
+            <td>{{ deposit.contract.end_date.strftime('%d %B %Y') }}</td>
+        </tr>
+        {% endif %}
+        {% endif %}
+    </table>
+</div>
+
+<!-- Deposit details -->
+<div class="section">
+    <h2>Deposit Details</h2>
+    <table>
+        <tr>
+            <td class="label">Deposit Amount</td>
+            <td class="value">£{{ '%.2f'|format(deposit.amount) }}</td>
+        </tr>
+        <tr>
+            <td class="label">Date Received</td>
+            <td>
+                {{ deposit.date_received.strftime('%d %B %Y')
+                   if deposit.date_received else '—' }}
+            </td>
+        </tr>
+        <tr>
+            <td class="label">Protection Scheme</td>
+            <td>{{ deposit.dps_scheme or 'Not yet registered' }}</td>
+        </tr>
+        <tr>
+            <td class="label">DPS Reference Number</td>
+            <td class="value">{{ deposit.dps_reference or '—' }}</td>
+        </tr>
+        {% if deposit.notes and 'Protected:' in deposit.notes %}
+        <tr>
+            <td class="label">Date Protected</td>
+            <td>
+                {{ deposit.notes.split('Protected:')[1].split('.')[0].strip()
+                   if 'Protected:' in deposit.notes else '—' }}
+            </td>
+        </tr>
+        {% endif %}
+    </table>
+</div>
+
+<!-- Deduction details if applicable -->
+{% if deposit.status in ('deducting', 'paid', 'withdrawn') and deposit.deduction_amount %}
+<div class="section">
+    <h2>Deduction Details</h2>
+    <table>
+        <tr>
+            <td class="label">Deposit Held</td>
+            <td>£{{ '%.2f'|format(deposit.amount) }}</td>
+        </tr>
+        <tr>
+            <td class="label">Total Deductions</td>
+            <td style="color:#d4351c;">
+                − £{{ '%.2f'|format(deposit.deduction_amount) }}
+            </td>
+        </tr>
+        <tr>
+            <td class="label">Reason</td>
+            <td>{{ deposit.deduction_reason or '—' }}</td>
+        </tr>
+        <tr>
+            <td class="label">Amount Returned</td>
+            <td class="value">
+                £{{ '%.2f'|format(deposit.amount_returned or 0) }}
+            </td>
+        </tr>
+        {% if deposit.returned_date %}
+        <tr>
+            <td class="label">Date Returned</td>
+            <td>{{ deposit.returned_date.strftime('%d %B %Y') }}</td>
+        </tr>
+        {% endif %}
+    </table>
+</div>
+{% endif %}
+
+<!-- Legal notice -->
+<div class="notice">
+    <strong>Important Information</strong><br>
+    Your deposit is required by law to be protected in a government-approved
+    tenancy deposit scheme within 30 days of receipt. You must be provided
+    with the scheme details (Prescribed Information) within the same period.
+    For queries about your deposit please contact your landlord in the first
+    instance. If a dispute arises the deposit scheme provides a free
+    Alternative Dispute Resolution (ADR) service.
+</div>
+
+<!-- Footer -->
+<div class="footer">
+    DEP-{{ '%04d'|format(deposit.id) }} &mdash;
+    {{ deposit.tenant.full_name }} &mdash;
+    Issued {{ deposit.date_received.strftime('%d %B %Y')
+              if deposit.date_received else '' }} &mdash;
+    Personal data processed under GDPR Article 6(1)(b)
+</div>
+
+</body>
+</html>

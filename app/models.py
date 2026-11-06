@@ -157,6 +157,10 @@ class Deposit(db.Model):
     surrender_date = db.Column(db.Date)
     returned_date = db.Column(db.Date)
     notes = db.Column(db.Text)
+    tenant = db.relationship('Tenant', backref='deposit_records',
+                             foreign_keys='Deposit.tenant_id')
+    contract = db.relationship('TenantContract', backref='deposit',
+                               foreign_keys='Deposit.contract_id')
 
 
 class Bill(db.Model):

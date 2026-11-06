@@ -674,4 +674,145 @@ Two paths:
 
 ---
 
+### [06/11/2026] — FEATURE — Expenses module built and working
+- `app/expenses/routes.py` — full expense recording and management
+- Routes: index (with property filter), add, edit, delete
+- Add expense optionally creates a matching debit transaction in the ledger simultaneously
+- This is the key link between expenses and the transaction ledger for bank matching
+- Expenses categorised by PicklistCharge with HMRC box references
+- Sources: manual, bank, cash
+- Summary cards on index show total and breakdown by charge category
+- Expenses grouped by month with running total in footer
+- Known issue noted: QuickFile export was picking up expenses from BOTH the Expense
+  table AND debit Transaction records — duplicate lines. To fix in polish pass by
+  excluding debit transactions that originated from an expense record
+
+### [06/11/2026] — FEATURE — Transactions module built and working
+- `app/transactions/routes.py` — ledger, CSV import, auto-matching, manual entry
+- Routes: index, add, import_csv, match, legend, legend_add, legend_delete, imports
+- Dual-entry accounting: every manual transaction creates both a credit and debit row
+- Bank CSV import: parses standard bank export format, handles encoding (utf-8-sig, latin-1)
+- Auto-match: compares bank description against TransactionLegend patterns (case-insensitive)
+- Match review page: confirm auto-matched rows, manually assign unmatched, split payments
+- Split payment: one bank row → two transaction records (e.g. JIJIN JOSE rent + bills)
+  sets notes to "{description} {type}" for correct QuickFile description
+- Cash payments entered via manual entry form with source='cash'
+- Import history page shows all previous imports with match stats
+- Legend rules: add/delete patterns linked to tenants and income/expense types
+- `app/transactions/importer.py` updated: cleaner auto_match_rows, robust CSV parsing
+- Known issue noted: auto-match correctly identifies patterns but tenant linking
+  needs further testing with real data once expense flow is complete
+
+### [06/11/2026] — FEATURE — QuickFile Export module built and working
+- `app/reports/routes.py` and `app/reports/quickfile.py`
+- Exports CSV in exact bank statement format matching QuickFile manual import
+- Filtered by property and UK tax year (6 April to 5 April)
+- Income rows: credit transactions with preferred description from legend
+  e.g. "JIJIN JOSE Rent", "JIJIN JOSE Bills" as separate lines
+- Expense rows: Expense table records for selected property as debit rows
+- Sort code and account number configurable per export
+- HMRC Self Assessment property income category reference table on export page
+- Known issue: duplicate lines when expenses also exist as debit transactions
+  — to fix in polish pass by joining Expense and Transaction tables to deduplicate
+- Note logged: auto-match rule system currently supports one pattern per tenant
+  per income type. Future work: multiple income types per pattern with amount-
+  based logic to determine Rent vs Bills split automatically
+
+### [06/11/2026] — FEATURE — Compliance Dashboard module built and working
+- `app/compliance/routes.py` — certificate and document tracking per property
+- Routes: index, add, edit, delete, download
+- 14 document types pre-loaded: Gas Safety (1yr), EICR (5yr), EPC (10yr),
+  HMO Licence (5yr), Fire Alarm, PAT, insurances, utility tariffs, broadband,
+  Right to Rent, Other
+- Dashboard view: all properties and all documents in one page
+- Colour coded rows: red = expired, yellow = expiring within 60 days, green = current
+- Alert banners at top summarise portfolio-wide expired and expiring-soon counts
+- Auto-calculated expiry: picks issue date + renewal years − 1 day via JavaScript
+- File upload: PDF/JPG/PNG stored in app/static/uploads/compliance/
+- Secure filename generation with timestamp to prevent collisions
+- Download route serves files from upload folder
+
+### [06/11/2026] — FEATURE — Tasks module built and working
+- `app/tasks/routes.py` — full task management system
+- Routes: index, add, edit, complete, cancel, delete, rooms_for_property (AJAX)
+- 6 categories: Quick Fix, Major Project, Reminder, Compliance, Admin, Maintenance
+- 4 priorities: Urgent, High, Medium, Low — colour coded
+- 4 statuses: Open, In Progress, Complete, Cancelled
+- Repeat schedules: none, weekly, monthly, yearly
+  On completion of a repeating task → next occurrence auto-created with calculated due date
+- Time-bound flag for hard deadline tasks
+- Linked to property, room (loads via AJAX), and/or tenant
+- Filters: status, category, priority, property — all combinable via URL params
+- Summary cards: overdue, urgent, open, in progress, reminders
+- Overdue rows highlighted red, due within 7 days highlighted yellow
+- Add form accepts URL query params for system-generated task pre-fill
+- Schema addition: added category, repeat, time_bound columns to Task model
+  via Flask-Migrate migration
+- Notes for future work:
+  - Frequency multiplier (e.g. 2 + weekly = every 2 weeks, 5 + yearly = every 5 years)
+  - Advance reminder field (show task N days before due date)
+  - System-generated tasks from compliance expiry and overdue rent
+
+### [06/11/2026] — FEATURE — Admin Panel module built and working
+- `app/admin/routes.py` — user management for all roles
+- Routes: index, add_landlord, invite_tenant, edit_user, toggle_user, delete_user
+- @admin_required decorator protects all admin routes
+- Admin dashboard: system stats, three user sections (admins, landlords, tenants)
+- Add Landlord: creates scoped landlord account — sees only own data
+- Invite Tenant: creates portal account linked to existing Tenant record
+  Only tenants without an existing portal_user_id shown in dropdown
+  Role set to 'tenant' for portal-gated access
+- Edit user: change username, email, role, active status, reset password
+- Toggle active: disable login without deleting account or data
+- Delete user: unlinks portal_user_id from Tenant record before deletion
+- Landlord accounts: show property_count and tenant_count on dashboard
+- Tenant portal accounts: show linked Tenant record name with link
+
+### [06/11/2026] — FEATURE — Deposits module built and working
+- `app/deposits/routes.py` — full deposit lifecycle management
+- Routes: index, add, view, edit, certificate (PDF), download, contracts_for_tenant, delete
+- Deposit ID formatted as DEP-0001 for clean referencing
+- 5 statuses: Pending, Protected, Paid (returned), Deducting, Withdrawn
+- 3 DPS schemes: Deposit Protection Service, MyDeposits, Tenancy Deposit Scheme
+- File upload: DPS certificate stored in app/static/uploads/deposits/
+  File path stored in notes field as "| file:filename" (schema workaround —
+  add dedicated file_path column in polish pass migration)
+- Contract linking: tenant dropdown loads contracts via AJAX /deposits/contracts/{id}
+- Deduction workflow on edit page:
+  - Early surrender accepted toggle with agreed surrender date
+  - Deduction amount and reason fields
+  - Amount returned and date returned
+  - Quick calculation widget showing deposit − deductions = to return
+- Certificate PDF (xhtml2pdf): A4 document with green header, tenant details,
+  property address, DPS reference, legal notice about 30-day protection requirement
+  Deduction summary included when status is deducting/paid/withdrawn
+- Model relationships added to Deposit class:
+  tenant = db.relationship('Tenant', backref='deposit_records')
+  contract = db.relationship('TenantContract', backref='deposit')
+
+### [06/11/2026] — MILESTONE — First pass complete — all 14 modules built
+All planned modules delivered and working on local development server:
+1.  ✅ Auth — login, logout, register, change password
+2.  ✅ Dashboard — summary cards and quick links
+3.  ✅ Properties & Rooms — full CRUD, occupancy tracking
+4.  ✅ Tenants & Contracts — lifecycle, GDPR consent, Right to Rent
+5.  ✅ Bills — pro-rata shared bill calculation (gas, electric, council tax)
+6.  ✅ Invoices — generation, PDF download (xhtml2pdf), status tracking
+7.  ✅ Transactions — dual-entry ledger, bank CSV import, auto-match, split payments
+8.  ✅ Expenses — HMRC categorised, ledger integration, cash/bank/manual
+9.  ✅ QuickFile Export — tax year CSV per property in bank statement format
+10. ✅ Compliance — certificate dashboard, expiry tracking, file upload
+11. ✅ Tasks — categories, priorities, repeating schedules, property/room/tenant links
+12. ✅ Admin Panel — landlord and tenant portal account management
+13. ✅ Deposits — DPS tracking, deduction workflow, certificate PDF
+14. ✅ Tenant Portal — stub routes registered, ready for second pass build-out
+
+Tech stack confirmed and stable:
+- Python 3.14 · Flask 3 · UV · SQLite (instance/app.db) · SQLAlchemy · Flask-Migrate
+- xhtml2pdf for PDF generation (WeasyPrint replaced — GTK not available on Windows)
+- Jinja2 server-side templates · HMRC-inspired green/white CSS design system
+- 20 database tables · Flask-Login auth · Role-based access (admin/landlord/tenant)
+
+---
+
 *Add new entries above this line as development progresses.*
