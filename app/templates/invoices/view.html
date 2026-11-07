@@ -13,9 +13,13 @@
 </div>
 
 <!-- Status bar -->
-<div style="margin-bottom:24px; display:flex; align-items:center; gap:16px;">
+<div style="margin-bottom:24px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
     {% if invoice.status == 'paid' %}
         <span class="badge badge-green" style="font-size:14px; padding:4px 14px;">Paid</span>
+    {% elif invoice.status == 'partially_paid' %}
+        <span class="badge badge-yellow" style="font-size:14px; padding:4px 14px;">
+            Partially Paid
+        </span>
     {% elif invoice.status == 'overdue' %}
         <span class="badge badge-red" style="font-size:14px; padding:4px 14px;">Overdue</span>
     {% elif invoice.status == 'issued' %}
@@ -24,26 +28,48 @@
         <span class="badge badge-grey" style="font-size:14px; padding:4px 14px;">Draft</span>
     {% endif %}
 
-    <form method="POST" action="{{ url_for('invoices.update_status', invoice_id=invoice.id) }}"
+    <!-- Outstanding amount -->
+    {% if outstanding > 0 and invoice.status != 'draft' %}
+    <span style="font-size:14px; color:var(--error); font-weight:600;">
+        Outstanding: £{{ '%.2f'|format(outstanding) }}
+    </span>
+    {% elif invoice.status == 'paid' %}
+    <span style="font-size:14px; color:var(--green-dark); font-weight:600;">
+        &#10003; Fully paid
+    </span>
+    {% endif %}
+
+    <form method="POST"
+          action="{{ url_for('invoices.update_status', invoice_id=invoice.id) }}"
           style="display:flex; gap:8px; align-items:center;">
-        <select name="status" style="max-width:160px;">
-            <option value="draft"   {% if invoice.status=='draft'   %}selected{% endif %}>Draft</option>
-            <option value="issued"  {% if invoice.status=='issued'  %}selected{% endif %}>Issued</option>
-            <option value="paid"    {% if invoice.status=='paid'    %}selected{% endif %}>Paid</option>
-            <option value="overdue" {% if invoice.status=='overdue' %}selected{% endif %}>Overdue</option>
+        <select name="status" style="max-width:170px;">
+            <option value="draft"
+                {% if invoice.status=='draft' %}selected{% endif %}>Draft</option>
+            <option value="issued"
+                {% if invoice.status=='issued' %}selected{% endif %}>Issued</option>
+            <option value="partially_paid"
+                {% if invoice.status=='partially_paid' %}selected{% endif %}>
+                Partially Paid
+            </option>
+            <option value="paid"
+                {% if invoice.status=='paid' %}selected{% endif %}>Paid</option>
+            <option value="overdue"
+                {% if invoice.status=='overdue' %}selected{% endif %}>Overdue</option>
         </select>
         <button type="submit" class="btn btn-secondary btn-sm">Update Status</button>
     </form>
 </div>
 
-<!-- Invoice header info -->
+<!-- Header info -->
 <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:28px;">
     <div class="card">
         <div class="card-title">Invoice To</div>
         <p style="margin:0;">
             <strong>{{ invoice.tenant.full_name }}</strong><br>
             {{ invoice.property.address_line1 }}<br>
-            {% if invoice.property.address_line2 %}{{ invoice.property.address_line2 }}<br>{% endif %}
+            {% if invoice.property.address_line2 %}
+                {{ invoice.property.address_line2 }}<br>
+            {% endif %}
             {{ invoice.property.city or '' }} {{ invoice.property.postcode }}
         </p>
     </div>
@@ -53,14 +79,16 @@
             <tr><td style="color:var(--text-secondary);width:120px;">Invoice No.</td>
                 <td><strong>{{ invoice.invoice_number }}</strong></td></tr>
             <tr><td style="color:var(--text-secondary);">Issue Date</td>
-                <td>{{ invoice.issue_date.strftime('%d %b %Y') if invoice.issue_date else '—' }}</td></tr>
+                <td>{{ invoice.issue_date.strftime('%d %b %Y')
+                       if invoice.issue_date else '—' }}</td></tr>
             <tr><td style="color:var(--text-secondary);">Due Date</td>
-                <td><strong>{{ invoice.due_date.strftime('%d %b %Y') if invoice.due_date else '—' }}</strong></td></tr>
+                <td><strong>{{ invoice.due_date.strftime('%d %b %Y')
+                                if invoice.due_date else '—' }}</strong></td></tr>
             <tr><td style="color:var(--text-secondary);">Period</td>
-                <td>
-                    {{ invoice.period_start.strftime('%d %b %Y') if invoice.period_start else '—' }}
-                    to {{ invoice.period_end.strftime('%d %b %Y') if invoice.period_end else '—' }}
-                </td></tr>
+                <td>{{ invoice.period_start.strftime('%d %b %Y')
+                       if invoice.period_start else '—' }}
+                    to {{ invoice.period_end.strftime('%d %b %Y')
+                          if invoice.period_end else '—' }}</td></tr>
         </table>
     </div>
 </div>
@@ -89,7 +117,9 @@
         </tr>
         {% if invoice.arrears_carried_forward and invoice.arrears_carried_forward > 0 %}
         <tr>
-            <td class="text-right" style="color:var(--error);">Arrears Carried Forward</td>
+            <td class="text-right" style="color:var(--error);">
+                Arrears Carried Forward
+            </td>
             <td class="text-right" style="color:var(--error);">
                 £{{ '%.2f'|format(invoice.arrears_carried_forward) }}
             </td>
@@ -98,18 +128,60 @@
         <tr style="border-top:2px solid var(--green-primary);">
             <td class="text-right"><strong>Total Due</strong></td>
             <td class="text-right">
-                <strong style="font-size:20px;">£{{ '%.2f'|format(invoice.total_due) }}</strong>
+                <strong style="font-size:20px;">
+                    £{{ '%.2f'|format(invoice.total_due) }}
+                </strong>
             </td>
         </tr>
+        {% if invoice.amount_paid and invoice.amount_paid > 0 %}
+        <tr>
+            <td class="text-right" style="color:var(--green-dark);">Amount Paid</td>
+            <td class="text-right" style="color:var(--green-dark);">
+                − £{{ '%.2f'|format(invoice.amount_paid) }}
+            </td>
+        </tr>
+        <tr style="border-top:1px solid var(--border);">
+            <td class="text-right"><strong>Outstanding</strong></td>
+            <td class="text-right">
+                <strong style="color:{% if outstanding > 0 %}var(--error)
+                               {% else %}var(--green-dark){% endif %};">
+                    £{{ '%.2f'|format(outstanding) }}
+                </strong>
+            </td>
+        </tr>
+        {% endif %}
     </tfoot>
 </table>
 
+<!-- Payment history -->
+{% if payments %}
+<h2 style="margin-top:24px;">Payment History</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Amount</th>
+            <th>Notes</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for payment in payments %}
+        <tr>
+            <td>{{ payment.payment_date.strftime('%d %b %Y') }}</td>
+            <td style="color:var(--green-dark);">
+                <strong>£{{ '%.2f'|format(payment.amount) }}</strong>
+            </td>
+            <td style="font-size:13px;">{{ payment.notes or '—' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
 <!-- Add one-off charge -->
+{% if invoice.status not in ('paid',) %}
 <div style="margin-top:28px;">
     <h2>Add One-Off Charge</h2>
-    <p class="text-muted" style="font-size:14px;">
-        Add a repair, key replacement, or any other charge to this invoice.
-    </p>
     <form method="POST"
           action="{{ url_for('invoices.add_item', invoice_id=invoice.id) }}"
           style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
@@ -120,19 +192,19 @@
         </div>
         <div class="form-group" style="margin:0; width:140px;">
             <label for="amount">Amount (£)</label>
-            <input type="number" id="amount" name="amount"
-                   step="0.01" min="0.01">
+            <input type="number" id="amount" name="amount" step="0.01" min="0.01">
         </div>
         <button type="submit" class="btn btn-secondary">Add Charge</button>
     </form>
 </div>
+{% endif %}
 
 <!-- Delete -->
 <div style="margin-top:40px; border-top:1px solid var(--border); padding-top:20px;">
-    <form method="POST" action="{{ url_for('invoices.delete', invoice_id=invoice.id) }}"
-          onsubmit="return confirm('Delete invoice {{ invoice.invoice_number }}? Bill shares will be released for re-invoicing.');">
+    <form method="POST"
+          action="{{ url_for('invoices.delete', invoice_id=invoice.id) }}"
+          onsubmit="return confirm('Delete invoice {{ invoice.invoice_number }}?');">
         <button type="submit" class="btn btn-danger btn-sm">Delete Invoice</button>
     </form>
 </div>
-
 {% endblock %}

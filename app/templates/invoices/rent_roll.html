@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}Rent Roll{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Rent Roll</h1>
+    <div style="display:flex; gap:8px;">
+        <a href="{{ url_for('invoices.generate') }}" class="btn btn-primary">
+            + Generate Invoice
+        </a>
+        <a href="{{ url_for('invoices.index') }}" class="btn btn-secondary">
+            All Invoices
+        </a>
+    </div>
+</div>
+
+<p class="text-muted">
+    Live snapshot of every active tenant's account balance.
+    Balances update automatically when invoices are issued and
+    payments are matched from bank imports.
+</p>
+
+<!-- Summary cards -->
+<div class="card-grid" style="margin-bottom:24px;">
+    <div class="card">
+        <div class="card-title">Monthly Rent Roll</div>
+        <div class="card-value">£{{ '%.2f'|format(total_rent_roll) }}</div>
+        <div class="card-sub">Total rent per month</div>
+    </div>
+    <div class="card" style="border-top-color:var(--error);">
+        <div class="card-title">Total Outstanding</div>
+        <div class="card-value" style="color:var(--error);">
+            £{{ '%.2f'|format(total_outstanding) }}
+        </div>
+        <div class="card-sub">Across all tenants</div>
+    </div>
+    <div class="card" style="border-top-color:var(--error);">
+        <div class="card-title">Overdue</div>
+        <div class="card-value" style="color:var(--error);">
+            {{ rows|selectattr('status','eq','overdue')|list|length }}
+        </div>
+        <div class="card-sub">Tenants with overdue invoices</div>
+    </div>
+    <div class="card" style="border-top-color:var(--green-primary);">
+        <div class="card-title">Current</div>
+        <div class="card-value">
+            {{ rows|selectattr('status','eq','current')|list|length }}
+        </div>
+        <div class="card-sub">Fully paid up</div>
+    </div>
+</div>
+
+<!-- Property filter -->
+<div style="display:flex; align-items:center; gap:10px; margin-bottom:20px;">
+    <span style="font-size:14px; font-weight:600;">Filter:</span>
+    <a href="{{ url_for('invoices.rent_roll') }}"
+       class="btn btn-sm {% if not property_id %}btn-primary{% else %}btn-secondary{% endif %}">
+        All Properties
+    </a>
+    {% for prop in properties %}
+    <a href="{{ url_for('invoices.rent_roll', property_id=prop.id) }}"
+       class="btn btn-sm
+       {% if property_id == prop.id %}btn-primary{% else %}btn-secondary{% endif %}">
+        {{ prop.property_ref or prop.address_line1 }}
+    </a>
+    {% endfor %}
+</div>
+
+{% if rows %}
+<table>
+    <thead>
+        <tr>
+            <th>Tenant</th>
+            <th>Property / Room</th>
+            <th>Monthly Rent</th>
+            <th>Next Due</th>
+            <th>Rent Balance</th>
+            <th>Bill Balance</th>
+            <th>Total Owed</th>
+            <th>Last Payment</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr {% if row.status == 'overdue' %}style="background:#fde8e4;"
+            {% elif row.status == 'outstanding' %}style="background:#fff7bf;"
+            {% elif row.status == 'credit' %}style="background:#e8f5ee;"
+            {% endif %}>
+
+            <td>
+                <a href="{{ url_for('tenants.view', tenant_id=row.tenant.id) }}">
+                    <strong>{{ row.tenant.full_name }}</strong>
+                </a>
+            </td>
+
+            <td style="font-size:13px;">
+                {{ row.property.property_ref or row.property.address_line1 }}<br>
+                <span style="color:var(--text-secondary);">
+                    {{ row.room.room_name }}
+                </span>
+            </td>
+
+            <td>£{{ '%.2f'|format(row.monthly_rent) }}</td>
+
+            <td style="font-size:13px;">
+                {% if row.next_rent_due %}
+                    {% set days = (row.next_rent_due - today).days %}
+                    {{ row.next_rent_due.strftime('%d %b %Y') }}<br>
+                    {% if days < 0 %}
+                        <span style="color:var(--error); font-size:12px;">
+                            {{ days|abs }} days ago
+                        </span>
+                    {% elif days == 0 %}
+                        <span style="color:var(--error); font-size:12px;">
+                            Due today
+                        </span>
+                    {% elif days <= 7 %}
+                        <span style="color:#f47738; font-size:12px;">
+                            In {{ days }} days
+                        </span>
+                    {% else %}
+                        <span style="color:var(--text-secondary); font-size:12px;">
+                            In {{ days }} days
+                        </span>
+                    {% endif %}
+                {% else %}
+                    <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+
+            <td style="text-align:right;">
+                <span {% if row.rent_balance > 0 %}style="color:var(--error);"{% endif %}>
+                    £{{ '%.2f'|format(row.rent_balance) }}
+                </span>
+            </td>
+
+            <td style="text-align:right;">
+                <span {% if row.bill_balance > 0 %}style="color:var(--error);"{% endif %}>
+                    £{{ '%.2f'|format(row.bill_balance) }}
+                </span>
+            </td>
+
+            <td style="text-align:right;">
+                {% if row.total_balance > 0 %}
+                    <strong style="color:var(--error);">
+                        £{{ '%.2f'|format(row.total_balance) }}
+                    </strong>
+                {% elif row.total_balance < 0 %}
+                    <strong style="color:var(--green-dark);">
+                        £{{ '%.2f'|format(row.total_balance|abs) }} CR
+                    </strong>
+                {% else %}
+                    <strong style="color:var(--green-dark);">£0.00</strong>
+                {% endif %}
+            </td>
+
+            <td style="font-size:12px;">
+                {% if row.last_payment %}
+                    {{ row.last_payment.transaction_date.strftime('%d %b %Y') }}<br>
+                    <span style="color:var(--green-dark);">
+                        £{{ '%.2f'|format(row.last_payment.amount) }}
+                    </span>
+                {% else %}
+                    <span class="text-muted">No payments</span>
+                {% endif %}
+            </td>
+
+            <td>
+                {% if row.status == 'overdue' %}
+                    <span class="badge badge-red">
+                        Overdue {{ row.days_overdue }}d
+                    </span>
+                {% elif row.status == 'outstanding' %}
+                    <span class="badge badge-yellow">Outstanding</span>
+                {% elif row.status == 'credit' %}
+                    <span class="badge badge-green">In Credit</span>
+                {% else %}
+                    <span class="badge badge-green">Current</span>
+                {% endif %}
+            </td>
+
+            <td>
+                <a href="{{ url_for('invoices.generate') }}?property_id={{ row.contract.property_id }}"
+                   class="btn btn-secondary btn-sm">Invoice</a>
+                {% if row.outstanding_invoices %}
+                <a href="{{ url_for('invoices.index') }}"
+                   class="btn btn-secondary btn-sm">
+                    {{ row.outstanding_invoices|length }} open
+                </a>
+                {% endif %}
+            </td>
+
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr style="border-top:2px solid var(--green-primary);
+                   background:var(--grey-light);">
+            <td colspan="2"><strong>Totals</strong></td>
+            <td><strong>£{{ '%.2f'|format(total_rent_roll) }}</strong></td>
+            <td></td>
+            <td style="text-align:right;">
+                <strong>
+                    £{{ '%.2f'|format(rows|sum(attribute='rent_balance')) }}
+                </strong>
+            </td>
+            <td style="text-align:right;">
+                <strong>
+                    £{{ '%.2f'|format(rows|sum(attribute='bill_balance')) }}
+                </strong>
+            </td>
+            <td style="text-align:right;">
+                <strong style="color:var(--error);">
+                    £{{ '%.2f'|format(total_outstanding) }}
+                </strong>
+            </td>
+            <td colspan="3"></td>
+        </tr>
+    </tfoot>
+</table>
+
+{% else %}
+<div class="card" style="max-width:500px;">
+    <div class="card-title">No active tenants found</div>
+    <p style="margin:8px 0 16px;">
+        Add tenants with active contracts to see the rent roll.
+    </p>
+    <a href="{{ url_for('tenants.add') }}" class="btn btn-primary">
+        + Add Tenant
+    </a>
+</div>
+{% endif %}
+{% endblock %}

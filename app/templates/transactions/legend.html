@@ -9,12 +9,43 @@
 
 <p class="text-muted">
     When a bank statement is imported, each row's description is checked against
-    these rules. If a match is found the transaction is automatically assigned to
-    that tenant. Patterns are matched case-insensitively.
+    these rules. If a match is found the transaction is automatically assigned
+    to that tenant and their payment is matched against outstanding invoices.
 </p>
 
+<!-- How it works -->
+<div class="card" style="max-width:700px; margin:16px 0 28px;
+                          border-top-color:var(--green-primary);">
+    <div class="card-title">How Auto-Matching Works</div>
+    <p style="font-size:14px; margin-bottom:10px;">
+        <strong>1. Pattern matching</strong> — The bank description is checked
+        against your patterns case-insensitively. For example the pattern
+        <code>GOLLA H</code> will match any bank row containing those characters.
+    </p>
+    <p style="font-size:14px; margin-bottom:10px;">
+        <strong>2. Tenant identification</strong> — The pattern identifies
+        <em>who</em> paid. You do not need to set Income Type or Expense Type —
+        leaving them blank is fine. The payment engine automatically looks up
+        the tenant's outstanding invoices and splits the amount into rent and
+        bills portions in the correct order.
+    </p>
+    <p style="font-size:14px; margin-bottom:10px;">
+        <strong>3. Preferred Description</strong> — This becomes the base for
+        the QuickFile export description. The system appends the type automatically:
+        <code>GOLLA H Rent</code> and <code>GOLLA H Bills</code> as separate lines.
+        If you leave this blank the raw bank description is used instead.
+    </p>
+    <p style="font-size:14px; margin-bottom:0;">
+        <strong>4. Surplus / Deposit</strong> — If a payment exceeds all
+        outstanding invoices, the remainder is checked against any pending
+        deposit record. If it matches the deposit amount it is labelled as
+        <code>Deposit</code>. Otherwise it is recorded as
+        <code>Advanced Rent</code>.
+    </p>
+</div>
+
 <!-- Add new rule -->
-<div class="card" style="max-width:700px; margin:20px 0 28px;">
+<div class="card" style="max-width:700px; margin-bottom:28px;">
     <div class="card-title">Add New Rule</div>
     <form method="POST" action="{{ url_for('transactions.legend_add') }}">
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;">
@@ -28,8 +59,8 @@
                        placeholder="e.g. GOLLA H"
                        style="text-transform:uppercase;">
                 <span class="form-hint">
-                    Exact text that appears in the bank description.
-                    Will be matched in uppercase.
+                    The exact text that appears in the bank description.
+                    Matched case-insensitively. Keep it short and unique.
                 </span>
             </div>
 
@@ -41,24 +72,31 @@
                     <option value="{{ tenant.id }}">{{ tenant.full_name }}</option>
                     {% endfor %}
                 </select>
+                <span class="form-hint">
+                    Link to a tenant to enable automatic invoice matching.
+                </span>
             </div>
 
             <div class="form-group" style="margin:0;">
                 <label for="income_type">Income Type</label>
                 <select id="income_type" name="income_type">
-                    <option value="">—</option>
+                    <option value="">— Leave blank (auto-split) —</option>
                     <option value="Rent">Rent</option>
                     <option value="Gas/Electric">Gas/Electric</option>
                     <option value="Council Tax">Council Tax</option>
                     <option value="Deposit">Deposit</option>
                     <option value="Other">Other</option>
                 </select>
+                <span class="form-hint">
+                    Leave blank — the engine splits rent and bills automatically.
+                    Only set this if the payment is always one specific type.
+                </span>
             </div>
 
             <div class="form-group" style="margin:0;">
                 <label for="expense_type">Expense Type</label>
                 <select id="expense_type" name="expense_type">
-                    <option value="">—</option>
+                    <option value="">— Leave blank —</option>
                     <option value="Water">Water</option>
                     <option value="Broadband">Broadband</option>
                     <option value="Insurance">Insurance</option>
@@ -66,21 +104,29 @@
                     <option value="Wages">Wages</option>
                     <option value="Other">Other</option>
                 </select>
+                <span class="form-hint">
+                    Set this for expense/debit rows such as utility direct debits.
+                </span>
             </div>
 
             <div class="form-group" style="margin:0; grid-column:1/-1;">
                 <label for="preferred_description">Preferred Description</label>
                 <input type="text" id="preferred_description"
                        name="preferred_description"
-                       placeholder="e.g. GOLLA H Rent — used in QuickFile export">
+                       placeholder="e.g. GOLLA H — used as base for QuickFile export">
                 <span class="form-hint">
-                    This replaces the raw bank description in the QuickFile export.
+                    The QuickFile export uses this as the transaction description base,
+                    appending Rent or Bills automatically. E.g. set
+                    <code>GOLLA H</code> and the export produces
+                    <code>GOLLA H Rent</code> and <code>GOLLA H Bills</code>.
+                    Leave blank to use the raw bank description.
                 </span>
             </div>
 
         </div>
-        <button type="submit" class="btn btn-primary"
-                style="margin-top:14px;">Add Rule</button>
+        <button type="submit" class="btn btn-primary" style="margin-top:14px;">
+            Add Rule
+        </button>
     </form>
 </div>
 
@@ -111,12 +157,25 @@
                     <span class="text-muted">— expense —</span>
                 {% endif %}
             </td>
-            <td>{{ leg.income_type or '—' }}</td>
+            <td>
+                {% if leg.income_type %}
+                    {{ leg.income_type }}
+                {% else %}
+                    <span class="text-muted">Auto-split</span>
+                {% endif %}
+            </td>
             <td>{{ leg.expense_type or '—' }}</td>
-            <td style="font-size:13px;">{{ leg.preferred_description or '—' }}</td>
+            <td style="font-size:13px;">
+                {% if leg.preferred_description %}
+                    <code>{{ leg.preferred_description }}</code>
+                {% else %}
+                    <span class="text-muted">Raw bank description</span>
+                {% endif %}
+            </td>
             <td>
                 <form method="POST"
-                      action="{{ url_for('transactions.legend_delete', legend_id=leg.id) }}"
+                      action="{{ url_for('transactions.legend_delete',
+                                 legend_id=leg.id) }}"
                       onsubmit="return confirm('Delete this rule?');">
                     <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                 </form>
@@ -130,8 +189,8 @@
     <div class="card-title">No rules yet</div>
     <p style="margin:8px 0;">
         Add a rule for each tenant's bank reference before importing your statement.
-        For example, if your tenant GOLLA H always uses "GOLLA H" as their bank
-        reference, add that as a pattern linked to their tenant record.
+        You only need the pattern and the tenant link — the payment engine
+        handles everything else automatically.
     </p>
 </div>
 {% endif %}
