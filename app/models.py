@@ -100,7 +100,6 @@ class Tenant(db.Model):
 
     contracts = db.relationship('TenantContract', backref='tenant', lazy='dynamic',
                                 foreign_keys='TenantContract.tenant_id')
-    deposits = db.relationship('Deposit', backref='tenant', lazy='dynamic')
     transactions = db.relationship(
         'Transaction', backref='tenant', lazy='dynamic')
     tasks = db.relationship('Task', backref='tenant', lazy='dynamic')
@@ -157,10 +156,11 @@ class Deposit(db.Model):
     surrender_date = db.Column(db.Date)
     returned_date = db.Column(db.Date)
     notes = db.Column(db.Text)
-    tenant = db.relationship('Tenant', backref='deposit_records',
-                             foreign_keys='Deposit.tenant_id')
-    contract = db.relationship('TenantContract', backref='deposit',
-                               foreign_keys='Deposit.contract_id')
+    file_path = db.Column(db.String(300))
+    tenant = db.relationship('Tenant', foreign_keys='Deposit.tenant_id',
+                             backref='deposits')
+    contract = db.relationship('TenantContract', foreign_keys='Deposit.contract_id',
+                               backref='tenant_deposit')
 
 
 class Bill(db.Model):
@@ -224,6 +224,22 @@ class Invoice(db.Model):
                             cascade='all, delete-orphan')
     tenant = db.relationship('Tenant', backref='invoices')
     property = db.relationship('Property', backref='invoices')
+    amount_paid = db.Column(db.Numeric(10, 2), default=0.00)
+
+
+class InvoicePayment(db.Model):
+    __tablename__ = 'invoice_payments'
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_id = db.Column(db.Integer, db.ForeignKey(
+        'invoices.id'), nullable=False)
+    transaction_id = db.Column(db.Integer, db.ForeignKey(
+        'transactions.id'), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    payment_date = db.Column(db.Date, nullable=False)
+    notes = db.Column(db.String(200))
+
+    invoice = db.relationship('Invoice', backref='payments')
+    transaction = db.relationship('Transaction', backref='invoice_payment')
 
 
 class InvoiceItem(db.Model):
@@ -265,6 +281,8 @@ class Transaction(db.Model):
     bank_import_id = db.Column(db.Integer, db.ForeignKey(
         'bank_imports.id'), nullable=True)
     charges_are_paid = db.Column(db.Boolean, default=False)
+    expense_id = db.Column(db.Integer, db.ForeignKey(
+        'expenses.id'), nullable=True)
     notes = db.Column(db.Text)
 
 
@@ -332,6 +350,8 @@ class Expense(db.Model):
         'bank_import_rows.id'), nullable=True)
     receipt_path = db.Column(db.String(300))
     notes = db.Column(db.Text)
+    transaction = db.relationship('Transaction', backref='expense_record',
+                                  foreign_keys='Transaction.expense_id')
     charge_type = db.relationship('PicklistCharge',
                                   foreign_keys='Expense.charge_type_id',
                                   backref='expenses')
@@ -391,6 +411,8 @@ class Task(db.Model):
     category = db.Column(db.String(30))
     repeat = db.Column(db.String(20), default='none')
     time_bound = db.Column(db.Boolean, default=False)
+    repeat_frequency = db.Column(db.Integer, default=1)
+    remind_days_before = db.Column(db.Integer, default=0)
 
 
 class Message(db.Model):

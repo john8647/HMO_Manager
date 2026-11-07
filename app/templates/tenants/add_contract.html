@@ -8,46 +8,47 @@
        class="btn btn-secondary">&larr; Back to {{ tenant.full_name }}</a>
 </div>
 
-<p class="text-muted">Creating a contract for <strong>{{ tenant.full_name }}</strong>.</p>
+<p class="text-muted">
+    Creating a contract for <strong>{{ tenant.full_name }}</strong>.
+</p>
 
-<form method="POST" action="{{ url_for('tenants.add_contract', tenant_id=tenant.id) }}">
+<form method="POST"
+      action="{{ url_for('tenants.add_contract', tenant_id=tenant.id) }}">
 <div style="max-width: 560px; margin-top: 16px;">
 
     <div class="form-group">
-        <label for="property_id">Property <span style="color:var(--error);">*</span></label>
-        <select id="property_id" name="property_id"
-                onchange="this.form.submit()">
+        <label for="property_id">
+            Property <span style="color:var(--error);">*</span>
+        </label>
+        <select id="property_id" name="property_id" required
+                onchange="loadRooms(this.value)">
             <option value="">— Select property —</option>
             {% for prop in properties %}
             <option value="{{ prop.id }}"
-                {% if selected_property_id and selected_property_id|int == prop.id %}
-                    selected
-                {% endif %}>
-                {{ prop.property_ref or prop.address_line1 }} — {{ prop.address_line1 }}
+                {% if request.form.get('property_id') == prop.id|string %}
+                    selected{% endif %}>
+                {{ prop.property_ref or '' }} — {{ prop.address_line1 }}
             </option>
             {% endfor %}
         </select>
-        <span class="form-hint">Selecting a property loads its vacant rooms.</span>
+        <span class="form-hint">
+            Rooms will load automatically when you select a property.
+        </span>
     </div>
 
-    {% if rooms %}
     <div class="form-group">
-        <label for="room_id">Room <span style="color:var(--error);">*</span></label>
-        <select id="room_id" name="room_id">
-            <option value="">— Select room —</option>
-            {% for room in rooms %}
-            <option value="{{ room.id }}">{{ room.room_name }}</option>
-            {% endfor %}
+        <label for="room_id">
+            Room <span style="color:var(--error);">*</span>
+        </label>
+        <select id="room_id" name="room_id" required>
+            <option value="">— Select a property first —</option>
         </select>
     </div>
-    {% elif selected_property_id %}
-    <div class="alert alert-warning">
-        No vacant rooms in this property. Add rooms or end an existing tenancy first.
-    </div>
-    {% endif %}
 
     <div class="form-group">
-        <label for="start_date">Contract Start Date <span style="color:var(--error);">*</span></label>
+        <label for="start_date">
+            Contract Start Date <span style="color:var(--error);">*</span>
+        </label>
         <input type="date" id="start_date" name="start_date"
                value="{{ request.form.get('start_date', '') }}" required>
         <span class="form-hint">This is also the first rent due date.</span>
@@ -67,7 +68,9 @@
     </div>
 
     <div class="form-group">
-        <label for="monthly_rent">Monthly Rent (£) <span style="color:var(--error);">*</span></label>
+        <label for="monthly_rent">
+            Monthly Rent (£) <span style="color:var(--error);">*</span>
+        </label>
         <input type="number" id="monthly_rent" name="monthly_rent"
                step="0.01" min="0"
                value="{{ request.form.get('monthly_rent', '') }}"
@@ -76,20 +79,57 @@
 
     <div class="form-group">
         <label for="advanced_rent_agreed">Advanced Rent Agreed (£)</label>
-        <input type="number" id="advanced_rent_agreed" name="advanced_rent_agreed"
+        <input type="number" id="advanced_rent_agreed"
+               name="advanced_rent_agreed"
                step="0.01" min="0"
                value="{{ request.form.get('advanced_rent_agreed', '0') }}"
                style="max-width: 180px;">
-        <span class="form-hint">Amount paid in advance. Leave 0 if none.</span>
+        <span class="form-hint">Leave 0 if none.</span>
     </div>
 
     <div class="mt-2">
-        <button type="submit" class="btn btn-primary"
-                formnovalidate="false">Create Contract</button>
+        <button type="submit" class="btn btn-primary">Create Contract</button>
         <a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}"
            class="btn btn-secondary" style="margin-left: 8px;">Cancel</a>
     </div>
 
 </div>
 </form>
+
+<script>
+function loadRooms(propertyId) {
+    const sel = document.getElementById('room_id');
+    sel.innerHTML = '<option value="">— Loading rooms... —</option>';
+
+    if (!propertyId) {
+        sel.innerHTML = '<option value="">— Select a property first —</option>';
+        return;
+    }
+
+    fetch(`/properties/${propertyId}/vacant-rooms`)
+        .then(r => r.json())
+        .then(rooms => {
+            if (rooms.length === 0) {
+                sel.innerHTML =
+                    '<option value="">— No vacant rooms in this property —</option>';
+            } else {
+                sel.innerHTML = '<option value="">— Select room —</option>';
+                rooms.forEach(r => {
+                    sel.innerHTML +=
+                        `<option value="${r.id}">${r.name}</option>`;
+                });
+            }
+        })
+        .catch(() => {
+            sel.innerHTML = '<option value="">— Could not load rooms —</option>';
+        });
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    const propSel = document.getElementById('property_id');
+    if (propSel.value) {
+        loadRooms(propSel.value);
+    }
+});
+</script>
 {% endblock %}

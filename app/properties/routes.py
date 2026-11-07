@@ -39,9 +39,9 @@ def add():
     if request.method == 'POST':
         address_line1 = request.form.get('address_line1', '').strip()
         address_line2 = request.form.get('address_line2', '').strip()
-        city = request.form.get('city', '').strip()
-        postcode = request.form.get('postcode', '').strip().upper()
-        property_ref = request.form.get('property_ref', '').strip()
+        city          = request.form.get('city', '').strip()
+        postcode      = request.form.get('postcode', '').strip().upper()
+        property_ref  = request.form.get('property_ref', '').strip()
 
         if not address_line1:
             flash('Address is required.', 'error')
@@ -87,9 +87,9 @@ def edit(property_id):
     if request.method == 'POST':
         prop.address_line1 = request.form.get('address_line1', '').strip()
         prop.address_line2 = request.form.get('address_line2', '').strip()
-        prop.city = request.form.get('city', '').strip()
-        prop.postcode = request.form.get('postcode', '').strip().upper()
-        prop.property_ref = request.form.get('property_ref', '').strip()
+        prop.city          = request.form.get('city', '').strip()
+        prop.postcode      = request.form.get('postcode', '').strip().upper()
+        prop.property_ref  = request.form.get('property_ref', '').strip()
 
         if not prop.address_line1:
             flash('Address is required.', 'error')
@@ -136,12 +136,10 @@ def add_room(property_id):
             property_id=prop.id, room_name=room_name
         ).first()
         if existing:
-            flash(
-                f'A room called "{room_name}" already exists in this property.', 'error')
+            flash(f'A room called "{room_name}" already exists in this property.', 'error')
             return render_template('properties/add_room.html', prop=prop)
 
-        room = Room(property_id=prop.id,
-                    room_name=room_name, is_occupied=False)
+        room = Room(property_id=prop.id, room_name=room_name, is_occupied=False)
         db.session.add(room)
         db.session.commit()
         flash(f'Room "{room_name}" added.', 'success')
@@ -169,6 +167,19 @@ def edit_room(property_id, room_id):
         return redirect(url_for('properties.view', property_id=prop.id))
 
     return render_template('properties/edit_room.html', prop=prop, room=room)
+
+
+@properties_bp.route('/<int:property_id>/vacant-rooms')
+@login_required
+def vacant_rooms(property_id):
+    from flask import jsonify
+    prop = Property.query.filter_by(
+        id=property_id, user_id=current_user.id
+    ).first_or_404()
+    rooms = Room.query.filter_by(
+        property_id=prop.id, is_occupied=False
+    ).order_by(Room.room_name).all()
+    return jsonify([{'id': r.id, 'name': r.room_name} for r in rooms])
 
 
 @properties_bp.route('/<int:property_id>/rooms/<int:room_id>/delete', methods=['POST'])
