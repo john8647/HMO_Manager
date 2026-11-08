@@ -815,4 +815,109 @@ Tech stack confirmed and stable:
 
 ---
 
+### [08/11/2026] — SETUP — Polish pass 1 begin
+- Standing rule established: before any model changes, audit all existing
+  backrefs first to prevent SQLAlchemy ArgumentError conflicts
+- Decided to stop using Flask-Migrate for SQLite schema changes during
+  development. Too many unnamed constraint issues with SQLite batch mode.
+  Will use direct raw SQL for column additions instead.
+  Flask-Migrate will work correctly on PostgreSQL at deployment time.
+
+### [08/11/2026] — SCHEMA — Polish pass 1 model additions
+- Added expense_id INTEGER to transactions table via raw SQL
+- Added repeat_frequency INTEGER and remind_days_before INTEGER to tasks
+  (already present from db.create_all — stamped migration c2de6083697e)
+- Added file_path VARCHAR to deposits
+  (already present from db.create_all — no migration needed)
+- Added amount_paid NUMERIC to invoices
+- Added invoice_payments table:
+  id, invoice_id, transaction_id, amount, payment_date, notes
+- Deposit model: fixed backref conflict — removed duplicate tenant/contract
+  relationships, used foreign_keys string syntax with unique backref names
+- Stamped migrations rather than running them where db.create_all had
+  already created the columns
+
+### [08/11/2026] — FEATURE — PicklistPaymentType seeded
+- 9 payment types added via polish_pass_1_setup.py:
+  Rent, Gas/Electric, Council Tax, Deposit, Advanced Rent,
+  Key Replacement, Utility Bills, Maintenance Charge, Other Income
+
+### [08/11/2026] — BUG — Contract dropdown validation errors fixed
+- add_contract page used onchange form submit to reload rooms
+  causing validation errors for all required fields
+- Fix: replaced with AJAX endpoint GET /properties/{id}/vacant-rooms
+  returning JSON list of vacant rooms for the selected property
+- New route: properties_bp vacant_rooms() returns jsonify room list
+- Template now uses fetch() to load rooms silently on property change
+- DOMContentLoaded handler re-loads rooms if property already selected
+  (handles page reload after a failed form submit)
+
+### [08/11/2026] — FEATURE — Tenant account balance and invoice payment flow
+- Invoices now have a formal financial lifecycle:
+  draft → issued → partially_paid → paid / overdue
+- When invoice is ISSUED: tenant rent_balance and bill_balance increase
+  by the rent and bill portions respectively
+- When invoice is DELETED: balances are reversed
+- Invoice generate form now has "Issue immediately" checkbox (default on)
+- invoice.amount_paid tracks cumulative payments against each invoice
+- Invoice view shows: outstanding balance, payment history table,
+  amount paid vs total due
+
+### [08/11/2026] — FEATURE — Payment matching engine built
+- New file: app/transactions/matcher.py
+- auto_match_payment() function:
+  1. Fetches outstanding invoices for tenant oldest-first
+  2. Splits payment: rent portion first, then bills
+  3. Creates Transaction credit rows with QuickFile-ready Notes:
+     "{preferred_description} Rent" and "{preferred_description} Bills"
+  4. Creates InvoicePayment records linking payments to invoices
+  5. Updates invoice.amount_paid and status
+  6. Updates tenant.rent_balance and tenant.bill_balance
+  7. Handles surplus: checks for pending deposit record first
+     (amount within £1.00 tolerance) → labels as "Deposit"
+     Otherwise labels surplus as "Advanced Rent"
+- Integrated into transactions match route:
+  confirm_all action now calls auto_match_payment() for each auto-matched row
+  manual_match action also routes through the engine for credit rows
+- Debit rows (expenses) handled separately via _create_debit_transaction()
+
+### [08/11/2026] — FEATURE — Auto-match legend page updated
+- Clearer instructions explaining:
+  Income/Expense Type can be left blank — engine auto-splits rent vs bills
+  Preferred Description is the QuickFile export base (Rent/Bills appended)
+  Surplus logic: deposit match first, then advanced rent
+- Income Type dropdown now shows "Leave blank (auto-split)" as default
+- Existing rules table shows "Auto-split" for blank income type
+
+### [08/11/2026] — FEATURE — Rent Roll built
+- New file: app/invoices/rent_roll.py — build_rent_roll() function
+- New route: /invoices/rent-roll with property filter
+- New template: invoices/rent_roll.html
+- Shows per tenant: monthly rent, next due date, rent balance,
+  bill balance, total owed, last payment date and amount, status
+- Status logic:
+  overdue  = has issued invoice with due_date < today
+  outstanding = has issued invoice not yet overdue
+  current  = no outstanding balance
+  credit   = negative balance (tenant has overpaid)
+- Sort order: overdue first, then outstanding, then current, then credit
+- Row colours: red=overdue, yellow=outstanding, green=current/credit
+- Summary cards: monthly rent roll total, total outstanding, overdue count
+- Totals row in table footer shows portfolio-wide rent/bill/outstanding
+- Rent roll link added to sidebar navigation under Finance section
+- Next rent due date shows days until/since with colour coding
+
+### [08/11/2026] — TOOL — Financial data reset script
+- New file: reset_financial_data.py
+- Safe reset for testing: clears all financial data, keeps structure
+- Clears: transactions, bank imports/rows, invoices/items/payments,
+  bill shares, bills, expenses
+- Resets: all tenant rent_balance and bill_balance to £0.00
+- Keeps: users, properties, rooms, tenants, contracts, compliance,
+  tasks, transaction legend rules, picklists
+- Requires typing YES to confirm before running
+- Prints suggested test order after completion
+
+---
+
 *Add new entries above this line as development progresses.*

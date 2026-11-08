@@ -1,22 +1,33 @@
 {% extends "base.html" %}
-{% block title %}Generate Invoice{% endblock %}
+{% block title %}Generate Bills Invoice{% endblock %}
 
 {% block content %}
 <div class="flex-between mb-2">
-    <h1>Generate Invoice</h1>
+    <h1>Generate Bills Invoice</h1>
     <a href="{{ url_for('invoices.index') }}" class="btn btn-secondary">&larr; Back</a>
 </div>
 
-<p class="text-muted">
-    Select a property and tenant, choose the billing period, and the system will
-    pull in their rent and any uninvoiced bill shares automatically.
-</p>
+<div class="card" style="max-width:680px; margin-bottom:24px;
+                          border-top-color:var(--green-primary);">
+    <div class="card-title">About Bill Invoices</div>
+    <p style="font-size:14px; margin-bottom:8px;">
+        This generates a <strong>shared bills invoice</strong> to send to a tenant
+        as a PDF. It covers their pro-rata share of gas, electricity, council tax,
+        and any one-off charges.
+    </p>
+    <p style="font-size:14px; margin-bottom:0;">
+        <strong>Rent is not included here.</strong> Rent charges are managed
+        automatically by the system via the rent roll and do not need to be
+        invoiced separately — tenants typically pay by standing order.
+        Use the <a href="{{ url_for('invoices.rent_roll') }}">Rent Roll</a>
+        to track rent balances.
+    </p>
+</div>
 
 <form method="POST" action="{{ url_for('invoices.generate') }}">
 <input type="hidden" name="action" value="generate">
 <div style="max-width: 600px; margin-top: 20px;">
 
-    <!-- Step 1: Property -->
     <div class="form-group">
         <label for="property_id">Property <span style="color:var(--error);">*</span></label>
         <select id="property_id" name="property_id"
@@ -32,16 +43,16 @@
         </select>
     </div>
 
-    <!-- Step 2: Tenant (only shown after property selected) -->
     {% if active_contracts %}
     <div class="form-group">
-        <label for="contract_id">Tenant <span style="color:var(--error);">*</span></label>
+        <label for="contract_id">
+            Tenant <span style="color:var(--error);">*</span>
+        </label>
         <select id="contract_id" name="contract_id" required>
             <option value="">— Select tenant —</option>
             {% for contract in active_contracts %}
             <option value="{{ contract.id }}">
                 {{ contract.tenant.full_name }} — {{ contract.room.room_name }}
-                (£{{ '%.2f'|format(contract.monthly_rent) }}/month)
             </option>
             {% endfor %}
         </select>
@@ -52,80 +63,81 @@
 
     {% if active_contracts %}
 
-    <!-- Billing period -->
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
         <div class="form-group">
-            <label for="period_start">Period Start <span style="color:var(--error);">*</span></label>
+            <label for="period_start">
+                Period Start <span style="color:var(--error);">*</span>
+            </label>
             <input type="date" id="period_start" name="period_start"
                    value="{{ request.form.get('period_start','') }}" required>
         </div>
         <div class="form-group">
-            <label for="period_end">Period End <span style="color:var(--error);">*</span></label>
+            <label for="period_end">
+                Period End <span style="color:var(--error);">*</span>
+            </label>
             <input type="date" id="period_end" name="period_end"
                    value="{{ request.form.get('period_end','') }}" required>
         </div>
     </div>
 
-    <!-- Issue and due dates -->
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
         <div class="form-group">
-            <label for="issue_date">Issue Date <span style="color:var(--error);">*</span></label>
+            <label for="issue_date">
+                Issue Date <span style="color:var(--error);">*</span>
+            </label>
             <input type="date" id="issue_date" name="issue_date"
-                   value="{{ request.form.get('issue_date', date.today().isoformat()) }}" required>
+                   value="{{ request.form.get('issue_date', date.today().isoformat()) }}"
+                   required>
         </div>
         <div class="form-group">
-            <label for="due_date">Due Date <span style="color:var(--error);">*</span></label>
+            <label for="due_date">
+                Due Date <span style="color:var(--error);">*</span>
+            </label>
             <input type="date" id="due_date" name="due_date"
                    value="{{ request.form.get('due_date','') }}" required>
-            <span class="form-hint">Usually the tenant's rent due date.</span>
+            <span class="form-hint">
+                Typically 7–14 days from issue date.
+            </span>
         </div>
     </div>
 
-    <!-- What to include -->
+    <!-- Bills only — no rent -->
     <div class="card" style="margin-bottom:20px;">
-        <div class="card-title">Include on Invoice</div>
+        <div class="card-title">What to Include</div>
 
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-            <input type="checkbox" id="include_rent" name="include_rent"
-                   style="width:auto;"
-                   {% if request.form.get('include_rent','on') == 'on' %}checked{% endif %}>
-            <label for="include_rent" style="font-weight:normal; margin:0;">
-                Monthly Rent
-            </label>
-        </div>
-
-        <div class="form-group" style="margin-left:26px; margin-bottom:16px;">
-            <label for="rent_override" style="font-size:13px;">
-                Override rent amount (£) — leave blank to use contract amount
-            </label>
-            <input type="number" id="rent_override" name="rent_override"
-                   step="0.01" min="0"
-                   value="{{ request.form.get('rent_override','') }}"
-                   style="max-width:160px;">
-        </div>
-
-        <div style="display:flex; align-items:center; gap:10px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
             <input type="checkbox" id="include_bills" name="include_bills"
-                   style="width:auto;"
-                   {% if request.form.get('include_bills','on') == 'on' %}checked{% endif %}>
+                   style="width:auto;" checked>
             <label for="include_bills" style="font-weight:normal; margin:0;">
-                Uninvoiced Bill Shares (gas, electricity, council tax)
+                Uninvoiced bill shares (gas, electricity, council tax)
             </label>
         </div>
-        <p style="font-size:13px; color:var(--text-secondary); margin:6px 0 0 26px;">
+        <p style="font-size:13px; color:var(--text-secondary); margin:0 0 0 26px;">
             Only bill shares not yet on a previous invoice will be included.
         </p>
 
-        
+        <!-- Hidden field — no rent on bill invoices -->
+        <input type="hidden" name="include_rent" value="off">
     </div>
-  
+
+    <!-- Arrears note -->
+    <div class="card" style="margin-bottom:20px; font-size:14px;
+                              border-top-color:#fd0;">
+        <div class="card-title">Outstanding Rent Arrears</div>
+        <p style="margin:4px 0;">
+            If a tenant has outstanding rent arrears these will appear
+            on the invoice as <em>Arrears Carried Forward</em> automatically,
+            pulled from their current account balance.
+            This keeps them informed without you having to track it manually.
+        </p>
+    </div>
+
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:20px;">
         <input type="checkbox" id="issue_now" name="issue_now"
-            style="width:auto;" checked>
+               style="width:auto;" checked>
         <label for="issue_now" style="font-weight:normal; margin:0;">
-            <strong>Issue immediately</strong> — updates the tenant's account
-            balance so incoming bank payments can be automatically matched
-            against this invoice. Uncheck to save as a draft first.
+            <strong>Issue immediately</strong> — updates tenant bill balance
+            so incoming payments can be matched against this invoice
         </label>
     </div>
 

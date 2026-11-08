@@ -216,26 +216,35 @@ def auto_match_payment(
         db.session.add(t_bills)
         transactions.append(t_bills)
 
-    # Handle surplus — check if tenant has a deposit record first
+    # Handle surplus after all invoices are settled
     surplus = remaining
     if surplus > Decimal('0.00'):
-        # Check if tenant has an unprotected/pending deposit — likely this is it
         from app.models import Deposit
+
+        # Check if amount matches a pending deposit
         existing_deposit = Deposit.query.filter_by(
             tenant_id=tenant_id,
             status='pending'
         ).first()
 
-        if existing_deposit and abs(surplus - Decimal(str(existing_deposit.amount))) < Decimal('1.00'):
-            # Amount matches deposit — label as deposit payment
+        if existing_deposit and abs(
+            surplus - Decimal(str(existing_deposit.amount))
+        ) < Decimal('1.00'):
             surplus_type  = 'Deposit'
             surplus_notes = f'{base_desc} Deposit'.strip()
-            surplus_msg   = f'£{surplus:.2f} matched to deposit record DEP-{existing_deposit.id:04d}.'
+            surplus_msg   = (
+                f'£{surplus:.2f} matched to deposit '
+                f'DEP-{existing_deposit.id:04d}.'
+            )
         else:
-            # No matching deposit — record as advanced rent
-            surplus_type  = 'Advanced Rent'
-            surplus_notes = f'{base_desc} Advanced Rent'.strip()
-            surplus_msg   = f'£{surplus:.2f} recorded as advanced rent credit.'
+            # Treat as early/advance rent payment — NOT "Advanced Rent"
+            # label. Use plain "Rent" so rent engine skips this period.
+            surplus_type  = 'Rent'
+            surplus_notes = f'{base_desc} Rent'.strip()
+            surplus_msg   = (
+                f'£{surplus:.2f} recorded as Rent credit '
+                f'(paid ahead of charge).'
+            )
 
         t_surplus = Transaction(
             tenant_id=tenant_id,
@@ -252,6 +261,12 @@ def auto_match_payment(
         )
         db.session.add(t_surplus)
         transactions.append(t_surplus)
+        # Adjust tenant balance
+        tenant = Tenant.query.get(tenant_id)
+        if tenant and surplus_type == 'Rent':
+            tenant.rent_balance = (
+                Decimal(str(tenant.rent_balance or 0)) - surplus
+            )
         summary.append(surplus_msg)
 
     db.session.flush()
@@ -270,10 +285,39 @@ def auto_match_payment(
             db.session.add(ip)
 
     if not summary:
-        summary.append(
-            f'No outstanding invoices found. '
-            f'£{payment_amount:.2f} recorded as surplus.'
-        )
+        # No outstanding invoices found — payment arrived before rent
+        # charge was generated (tenant paid early / on standing order).
+        # Always label as Rent so the rent engine skips this month.
+        if surplus > Decimal('0.00'):
+            t_rent = Transaction(
+                tenant_id=tenant_id,
+                amount=surplus,
+                credit_debit='cr',
+                transaction_date=payment_date,
+                user_id=user_id,
+                type='Rent',
+                month_year_period=payment_date.strftime('%B %Y'),
+                source='bank_import',
+                bank_import_id=bank_import_id,
+                is_matched=True,
+                notes=f'{base_desc} Rent'.strip(),
+            )
+            db.session.add(t_rent)
+            transactions.append(t_rent)
+            tenant = Tenant.query.get(tenant_id)
+            if tenant:
+                tenant.rent_balance = (
+                    Decimal(str(tenant.rent_balance or 0)) - surplus
+                )
+            surplus = Decimal('0.00')
+            summary.append(
+                f'£{payment_amount:.2f} recorded as Rent — '
+                f'rent engine will skip {payment_date.strftime("%B %Y")}.'
+            )
+
+    # Recalculate balance from raw transactions to prevent drift
+    from app.invoices.rent_engine import recalculate_tenant_balance
+    recalculate_tenant_balance(tenant_id)
 
     return {
         'transactions_created': transactions,

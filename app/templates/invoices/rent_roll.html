@@ -4,14 +4,48 @@
 {% block content %}
 <div class="flex-between mb-2">
     <h1>Rent Roll</h1>
-    <div style="display:flex; gap:8px;">
-        <a href="{{ url_for('invoices.generate') }}" class="btn btn-primary">
-            + Generate Invoice
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="{{ url_for('invoices.preview_rent_charges') }}"
+           class="btn btn-secondary">
+            &#128269; Preview Charges
+        </a>
+        <form method="POST"
+              action="{{ url_for('invoices.run_rent_charges') }}"
+              style="display:inline;"
+              onsubmit="return confirm('Generate all outstanding rent charges now?');">
+            <button type="submit" class="btn btn-primary">
+                &#9654; Run Rent Charges
+            </button>
+        </form>
+        <form method="POST"
+            action="{{ url_for('invoices.recalculate_balances') }}"
+            style="display:inline;"
+            onsubmit="return confirm('Recalculate all balances from transaction history?');">
+            <button type="submit" class="btn btn-secondary">
+                &#8635; Recalculate Balances
+            </button>
+        </form>
+        <a href="{{ url_for('invoices.generate') }}" class="btn btn-secondary">
+            + Bills Invoice
         </a>
         <a href="{{ url_for('invoices.index') }}" class="btn btn-secondary">
             All Invoices
         </a>
+
     </div>
+</div>
+
+<div class="card" style="max-width:700px; margin-bottom:20px; font-size:14px;
+                          border-top-color:var(--green-primary);">
+    <div class="card-title">How Rent Charging Works</div>
+    <p style="margin:0;">
+        Click <strong>Run Rent Charges</strong> to automatically generate internal
+        rent charge entries for all active contracts up to today.
+        A contract starting 1 Jul with no charges yet will generate
+        5 monthly charges in one click.
+        Use <strong>Preview Charges</strong> to see what will be created first.
+        Rent charges update tenant balances immediately — no PDF invoice needed.
+    </p>
 </div>
 
 <p class="text-muted">

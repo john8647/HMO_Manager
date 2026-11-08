@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Preview Rent Charges{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Preview Rent Charges</h1>
+    <a href="{{ url_for('invoices.rent_roll') }}"
+       class="btn btn-secondary">&larr; Back to Rent Roll</a>
+</div>
+
+<p class="text-muted">
+    The following rent charges would be generated. No changes have been made yet.
+    Click <strong>Apply Charges</strong> to commit them to the ledger.
+</p>
+
+{% if results %}
+<table style="margin-bottom:24px;">
+    <thead>
+        <tr>
+            <th>Tenant</th>
+            <th>Property</th>
+            <th>Room</th>
+            <th>Period</th>
+            <th>Charge Date</th>
+            <th style="text-align:right;">Amount</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% set last_tenant = namespace(val='') %}
+        {% for r in results %}
+        {% if r.tenant != last_tenant.val %}
+        <tr style="background:var(--green-light);">
+            <td colspan="6" style="font-weight:700; font-size:13px;
+                                    color:var(--green-dark); padding:6px 14px;">
+                {{ r.tenant }}
+            </td>
+        </tr>
+        {% set last_tenant.val = r.tenant %}
+        {% endif %}
+        <tr>
+            <td>{{ r.tenant }}</td>
+            <td>{{ r.property }}</td>
+            <td>{{ r.room }}</td>
+            <td>{{ r.period }}</td>
+            <td>{{ r.charge_date.strftime('%d %b %Y') }}</td>
+            <td style="text-align:right;">
+                <strong>£{{ '%.2f'|format(r.amount) }}</strong>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr style="border-top:2px solid var(--green-primary);">
+            <td colspan="5"><strong>Total</strong></td>
+            <td style="text-align:right;">
+                <strong>
+                    £{{ '%.2f'|format(results|sum(attribute='amount')) }}
+                </strong>
+            </td>
+        </tr>
+    </tfoot>
+</table>
+
+<form method="POST" action="{{ url_for('invoices.run_rent_charges') }}">
+    <button type="submit" class="btn btn-primary">
+        &#10003; Apply {{ results|length }} Charge(s) to Ledger
+    </button>
+    <a href="{{ url_for('invoices.rent_roll') }}"
+       class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+</form>
+
+{% else %}
+<div class="card" style="max-width:500px;">
+    <div class="card-title">&#10003; All rent charges are up to date</div>
+    <p style="margin:8px 0 16px;">
+        No new charges need to be generated.
+        All active contracts are current.
+    </p>
+    <a href="{{ url_for('invoices.rent_roll') }}"
+       class="btn btn-secondary">&larr; Back to Rent Roll</a>
+</div>
+{% endif %}
+{% endblock %}

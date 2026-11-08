@@ -1,3 +1,4 @@
+from app.invoices.rent_engine import generate_rent_charges
 from flask import Blueprint, render_template, redirect, url_for, flash, request, Response
 from flask_login import login_required, current_user
 from app.invoices.rent_roll import build_rent_roll
@@ -6,8 +7,23 @@ from decimal import Decimal
 from app import db
 from app.models import (Invoice, InvoiceItem, BillTenantShare, TenantContract,
                         Tenant, Property, PicklistCharge, User, InvoicePayment)
+from app.invoices.rent_engine import generate_rent_charges, recalculate_all_balances
+
 
 invoices_bp = Blueprint('invoices', __name__)
+
+
+@invoices_bp.route('/rent-roll/recalculate', methods=['POST'])
+@login_required
+def recalculate_balances():
+    """Recalculate all tenant balances from raw transaction history."""
+    results = recalculate_all_balances(user_id=current_user.id)
+    flash(
+        f'Balances recalculated for {len(results)} tenant(s) '
+        f'from transaction history.',
+        'success'
+    )
+    return redirect(url_for('invoices.rent_roll'))
 
 
 @invoices_bp.route('/rent-roll')
@@ -412,3 +428,35 @@ def pdf(invoice_id):
     except Exception as e:
         flash(f'PDF generation failed: {e}', 'error')
         return redirect(url_for('invoices.view', invoice_id=invoice.id))
+
+
+@invoices_bp.route('/rent-roll/run-charges', methods=['POST'])
+@login_required
+def run_rent_charges():
+    """Generate all outstanding rent charges for active contracts."""
+    results = generate_rent_charges(user_id=current_user.id)
+    if results:
+        flash(
+            f'{len(results)} rent charge(s) generated across '
+            f'{len(set(r["tenant"] for r in results))} tenant(s).',
+            'success'
+        )
+        for r in results:
+            flash(
+                f'{r["tenant"]} — {r["room"]} — '
+                f'£{r["amount"]:.2f} for {r["period"]}',
+                'info'
+            )
+    else:
+        flash('All rent charges are up to date. No new charges needed.', 'success')
+    return redirect(url_for('invoices.rent_roll'))
+
+
+@invoices_bp.route('/rent-roll/preview-charges')
+@login_required
+def preview_rent_charges():
+    """Preview what charges would be generated without committing."""
+    results = generate_rent_charges(user_id=current_user.id, dry_run=True)
+    return render_template('invoices/preview_charges.html',
+                           results=results,
+                           today=date.today())
