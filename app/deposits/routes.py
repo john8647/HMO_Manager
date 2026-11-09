@@ -34,6 +34,95 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def _reclassify_advanced_rent(tenant_id: int, deposit_amount,
+                               deposit_date, user_id: int):
+    """
+    When a deposit is recorded, find the surplus rent credit that
+    represents the advanced rent payment and:
+
+    1. Reclassify that Transaction from type='Rent' to type='Advanced Rent'
+       and update its notes accordingly
+    2. Create a matching debit Transaction for the same amount so the
+       balance returns to £0
+
+    Logic:
+      - Sum all Rent debits (charges) for the tenant
+      - Sum all Rent credits (payments) for the tenant
+      - If credits > debits, the difference is the surplus = advanced rent
+      - Find the most recent Rent credit transaction that makes up that surplus
+      - Reclassify it and create the offsetting debit
+
+    Returns the advanced rent amount reclassified, or None if no surplus.
+    """
+    from decimal import Decimal
+    from app.models import Transaction
+    from app.invoices.rent_engine import recalculate_tenant_balance
+
+    # Calculate current rent surplus
+    debits = Transaction.query.filter_by(
+        tenant_id=tenant_id,
+        credit_debit='db',
+        type='Rent',
+    ).all()
+
+    credits = Transaction.query.filter_by(
+        tenant_id=tenant_id,
+        credit_debit='cr',
+        type='Rent',
+    ).all()
+
+    total_charged = sum(Decimal(str(t.amount)) for t in debits)
+    total_paid    = sum(Decimal(str(t.amount)) for t in credits)
+    surplus       = total_paid - total_charged
+
+    if surplus <= Decimal('0.00'):
+        return None
+
+    # Use the deposit amount as the advanced rent amount
+    # (can't be more than the actual surplus)
+    adv_amount = min(Decimal(str(deposit_amount)), surplus)
+
+    # Find the most recent Rent credit to reclassify
+    # (the last payment that created the surplus)
+    recent_credit = Transaction.query.filter_by(
+        tenant_id=tenant_id,
+        credit_debit='cr',
+        type='Rent',
+    ).order_by(Transaction.transaction_date.desc()).first()
+
+    if not recent_credit:
+        return None
+
+    # Reclassify the credit
+    old_notes = recent_credit.notes or ''
+    recent_credit.type  = 'Advanced Rent'
+    recent_credit.notes = old_notes.replace(
+        ' Rent', ' Advanced Rent'
+    ) if ' Rent' in old_notes else f'{old_notes} (Advanced Rent)'
+
+    # Create offsetting debit so balance = £0
+    from app.models import Transaction as Tx
+    adv_debit = Tx(
+        tenant_id=tenant_id,
+        amount=adv_amount,
+        credit_debit='db',
+        transaction_date=deposit_date,
+        user_id=user_id,
+        type='Advanced Rent',
+        month_year_period=deposit_date.strftime('%B %Y'),
+        source='system',
+        is_matched=True,
+        notes=f'Advanced rent offset — deposit recorded {deposit_date.strftime("%d %b %Y")}',
+    )
+    db.session.add(adv_debit)
+    db.session.flush()
+
+    # Recalculate balance from raw transactions
+    recalculate_tenant_balance(tenant_id)
+
+    return adv_amount
+
+
 def get_deposit_or_404(deposit_id):
     return Deposit.query.join(Tenant).filter(
         Deposit.id == deposit_id,
@@ -158,8 +247,6 @@ def add():
             notes=notes,
         )
 
-        # Store protected date and file in notes/file_path fields
-        # (using existing schema fields)
         if date_protected:
             deposit.notes = (
                 f'Protected: {date_protected.strftime("%d %b %Y")}. '
@@ -167,18 +254,34 @@ def add():
             ).strip()
 
         if file_path:
-            # Store in dps_reference field extension or notes
-            # Schema has no file_path — store in notes as a reference
-            # We'll add file_path to the model via migration
             deposit.notes = (deposit.notes or '') + f' | file:{file_path}'
 
         db.session.add(deposit)
-        db.session.commit()
-        flash(
-            f'Deposit of £{amount} recorded for '
-            f'{Tenant.query.get(int(tenant_id)).full_name}.',
-            'success'
+        db.session.flush()
+
+        tenant_obj = Tenant.query.get(int(tenant_id))
+
+        # ── Advanced Rent reclassification ──────────────────────────────
+        # Find the most recent Rent credit for this tenant that is a
+        # surplus above what the rent engine has charged — this is the
+        # advanced rent payment. Reclassify it and create a matching
+        # debit so the balance returns to £0.
+        advanced_rent_amount = _reclassify_advanced_rent(
+            tenant_id=int(tenant_id),
+            deposit_amount=amount,
+            deposit_date=date_received,
+            user_id=current_user.id,
         )
+
+        db.session.commit()
+
+        msg = f'Deposit of £{amount} recorded for {tenant_obj.full_name}.'
+        if advanced_rent_amount:
+            msg += (
+                f' £{advanced_rent_amount:.2f} advanced rent reclassified '
+                f'— tenant balance updated.'
+            )
+        flash(msg, 'success')
         return redirect(url_for('deposits.view', deposit_id=deposit.id))
 
     # Load contracts for pre-filled tenant

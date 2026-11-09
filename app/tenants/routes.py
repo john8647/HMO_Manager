@@ -25,11 +25,9 @@ def index():
         query = Tenant.query.filter_by(user_id=current_user.id)
 
     if show == 'inactive':
-        tenants = query.filter_by(is_active=False).order_by(
-            Tenant.last_name).all()
+        tenants = query.filter_by(is_active=False).order_by(Tenant.last_name).all()
     else:
-        tenants = query.filter_by(is_active=True).order_by(
-            Tenant.last_name).all()
+        tenants = query.filter_by(is_active=True).order_by(Tenant.last_name).all()
 
     # Attach active contract to each tenant for display
     for tenant in tenants:
@@ -46,19 +44,19 @@ def add():
     properties = Property.query.filter_by(user_id=current_user.id).all()
 
     if request.method == 'POST':
-        first_name = request.form.get('first_name', '').strip()
-        last_name = request.form.get('last_name', '').strip()
-        email = request.form.get('email', '').strip().lower()
-        phone = request.form.get('phone', '').strip()
-        dob_str = request.form.get('date_of_birth', '').strip()
-        nationality = request.form.get('nationality', '').strip()
+        first_name   = request.form.get('first_name', '').strip()
+        last_name    = request.form.get('last_name', '').strip()
+        email        = request.form.get('email', '').strip().lower()
+        phone        = request.form.get('phone', '').strip()
+        dob_str      = request.form.get('date_of_birth', '').strip()
+        nationality  = request.form.get('nationality', '').strip()
         student_status = request.form.get('student_status', 'Non-student')
-        student_id = request.form.get('student_id', '').strip()
-        university = request.form.get('university', '').strip()
+        student_id   = request.form.get('student_id', '').strip()
+        university   = request.form.get('university', '').strip()
         course_title = request.form.get('course_title', '').strip()
-        council_tax_ref = request.form.get('council_tax_ref', '').strip()
+        council_tax_ref    = request.form.get('council_tax_ref', '').strip()
         council_tax_number = request.form.get('council_tax_number', '').strip()
-        right_to_rent_ref = request.form.get('right_to_rent_ref', '').strip()
+        right_to_rent_ref  = request.form.get('right_to_rent_ref', '').strip()
         home_address = request.form.get('home_address', '').strip()
         home_country = request.form.get('home_country', '').strip()
         gdpr_consent = request.form.get('gdpr_consent') == 'on'
@@ -108,8 +106,7 @@ def add():
         )
         db.session.add(tenant)
         db.session.commit()
-        flash(
-            f'Tenant {tenant.full_name} added. Now create their contract.', 'success')
+        flash(f'Tenant {tenant.full_name} added. Now create their contract.', 'success')
         return redirect(url_for('tenants.add_contract', tenant_id=tenant.id))
 
     return render_template('tenants/add.html', properties=properties)
@@ -136,30 +133,25 @@ def edit(tenant_id):
     tenant = get_tenant_or_404(tenant_id)
 
     if request.method == 'POST':
-        tenant.first_name = request.form.get('first_name', '').strip()
-        tenant.last_name = request.form.get('last_name', '').strip()
-        tenant.email = request.form.get('email', '').strip().lower()
-        tenant.phone = request.form.get('phone', '').strip()
-        tenant.nationality = request.form.get('nationality', '').strip()
-        tenant.student_status = request.form.get(
-            'student_status', 'Non-student')
-        tenant.student_id = request.form.get('student_id', '').strip()
-        tenant.university = request.form.get('university', '').strip()
-        tenant.course_title = request.form.get('course_title', '').strip()
-        tenant.council_tax_ref = request.form.get(
-            'council_tax_ref', '').strip()
-        tenant.council_tax_number = request.form.get(
-            'council_tax_number', '').strip()
-        tenant.right_to_rent_ref = request.form.get(
-            'right_to_rent_ref', '').strip()
-        tenant.home_address = request.form.get('home_address', '').strip()
-        tenant.home_country = request.form.get('home_country', '').strip()
+        tenant.first_name    = request.form.get('first_name', '').strip()
+        tenant.last_name     = request.form.get('last_name', '').strip()
+        tenant.email         = request.form.get('email', '').strip().lower()
+        tenant.phone         = request.form.get('phone', '').strip()
+        tenant.nationality   = request.form.get('nationality', '').strip()
+        tenant.student_status = request.form.get('student_status', 'Non-student')
+        tenant.student_id    = request.form.get('student_id', '').strip()
+        tenant.university    = request.form.get('university', '').strip()
+        tenant.course_title  = request.form.get('course_title', '').strip()
+        tenant.council_tax_ref    = request.form.get('council_tax_ref', '').strip()
+        tenant.council_tax_number = request.form.get('council_tax_number', '').strip()
+        tenant.right_to_rent_ref  = request.form.get('right_to_rent_ref', '').strip()
+        tenant.home_address  = request.form.get('home_address', '').strip()
+        tenant.home_country  = request.form.get('home_country', '').strip()
 
         dob_str = request.form.get('date_of_birth', '').strip()
         if dob_str:
             try:
-                tenant.date_of_birth = datetime.strptime(
-                    dob_str, '%Y-%m-%d').date()
+                tenant.date_of_birth = datetime.strptime(dob_str, '%Y-%m-%d').date()
             except ValueError:
                 flash('Invalid date of birth.', 'error')
                 return render_template('tenants/edit.html', tenant=tenant)
@@ -167,11 +159,9 @@ def edit(tenant_id):
         council_in = request.form.get('council_informed_in', '').strip()
         council_out = request.form.get('council_informed_left', '').strip()
         if council_in:
-            tenant.council_informed_in = datetime.strptime(
-                council_in, '%Y-%m-%d').date()
+            tenant.council_informed_in = datetime.strptime(council_in, '%Y-%m-%d').date()
         if council_out:
-            tenant.council_informed_left = datetime.strptime(
-                council_out, '%Y-%m-%d').date()
+            tenant.council_informed_left = datetime.strptime(council_out, '%Y-%m-%d').date()
 
         if not tenant.first_name or not tenant.last_name:
             flash('First name and last name are required.', 'error')
@@ -223,17 +213,21 @@ def add_contract(tenant_id):
     properties = Property.query.filter_by(user_id=current_user.id).all()
 
     # Build room options — only vacant rooms or currently assigned room
-    selected_property_id = request.form.get(
-        'property_id') or request.args.get('property_id')
+    selected_property_id = request.form.get('property_id') or request.args.get('property_id')
+    rooms = []
+    if selected_property_id:
+        rooms = Room.query.filter_by(
+            property_id=selected_property_id, is_occupied=False
+        ).all()
 
     if request.method == 'POST':
-        property_id = request.form.get('property_id')
-        room_id = request.form.get('room_id')
+        property_id   = request.form.get('property_id')
+        room_id       = request.form.get('room_id')
         start_date_str = request.form.get('start_date', '').strip()
-        end_date_str = request.form.get('end_date', '').strip()
-        renewal_str = request.form.get('renewal_date', '').strip()
-        monthly_rent = request.form.get('monthly_rent', '').strip()
-        advanced_rent = request.form.get('advanced_rent_agreed', '0').strip()
+        end_date_str   = request.form.get('end_date', '').strip()
+        renewal_str    = request.form.get('renewal_date', '').strip()
+        monthly_rent   = request.form.get('monthly_rent', '').strip()
+        advanced_rent  = request.form.get('advanced_rent_agreed', '0').strip()
 
         errors = []
         if not property_id:
@@ -249,20 +243,18 @@ def add_contract(tenant_id):
             for e in errors:
                 flash(e, 'error')
             return render_template('tenants/add_contract.html',
-                                   tenant=tenant, properties=properties, rooms=[])
+                                   tenant=tenant, properties=properties, rooms=rooms)
 
         try:
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            end_date = datetime.strptime(
-                end_date_str, '%Y-%m-%d').date() if end_date_str else None
-            renewal_date = datetime.strptime(
-                renewal_str, '%Y-%m-%d').date() if renewal_str else None
+            end_date   = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
+            renewal_date = datetime.strptime(renewal_str, '%Y-%m-%d').date() if renewal_str else None
             monthly_rent_val = float(monthly_rent)
             advanced_rent_val = float(advanced_rent) if advanced_rent else 0.0
         except ValueError:
             flash('Invalid date or amount format.', 'error')
             return render_template('tenants/add_contract.html',
-                                   tenant=tenant, properties=properties, rooms=[])
+                                   tenant=tenant, properties=properties, rooms=rooms)
 
         # Deactivate any existing active contracts for this tenant
         for old in TenantContract.query.filter_by(tenant_id=tenant.id, is_active=True).all():
@@ -294,14 +286,49 @@ def add_contract(tenant_id):
             room.is_occupied = True
 
         db.session.commit()
-        flash(f'Contract created for {tenant.full_name}.', 'success')
+
+        # Auto-generate rent charges from contract start to today
+        # This ensures the first month debit exists immediately so
+        # bank imports can match against it cleanly
+        try:
+            from app.invoices.rent_engine import generate_rent_charges
+            charges = generate_rent_charges(user_id=current_user.id)
+            if charges:
+                tenant_charges = [
+                    c for c in charges if c['contract_id'] == contract.id
+                ]
+                if tenant_charges:
+                    flash(
+                        f'Contract created for {tenant.full_name}. '
+                        f'{len(tenant_charges)} rent charge(s) generated '
+                        f'from {tenant_charges[0]["period"]} to '
+                        f'{tenant_charges[-1]["period"]}.',
+                        'success'
+                    )
+                else:
+                    flash(
+                        f'Contract created for {tenant.full_name}.',
+                        'success'
+                    )
+            else:
+                flash(
+                    f'Contract created for {tenant.full_name}.',
+                    'success'
+                )
+        except Exception as e:
+            # Don't block contract creation if rent engine fails
+            flash(
+                f'Contract created for {tenant.full_name}. '
+                f'Note: rent charges could not be auto-generated ({e}). '
+                f'Run them manually from the Rent Roll.',
+                'warning'
+            )
+
         return redirect(url_for('tenants.view', tenant_id=tenant.id))
 
     return render_template('tenants/add_contract.html',
-                           tenant=tenant,
-                           properties=properties,
-                           rooms=[],
-                           selected_property_id=None)
+                           tenant=tenant, properties=properties, rooms=rooms,
+                           selected_property_id=selected_property_id)
 
 
 @tenants_bp.route('/<int:tenant_id>/contracts/<int:contract_id>/end', methods=['POST'])
@@ -315,8 +342,7 @@ def end_contract(tenant_id, contract_id):
     end_date_str = request.form.get('end_date', '').strip()
     if end_date_str:
         try:
-            contract.end_date = datetime.strptime(
-                end_date_str, '%Y-%m-%d').date()
+            contract.end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
         except ValueError:
             flash('Invalid end date.', 'error')
             return redirect(url_for('tenants.view', tenant_id=tenant.id))

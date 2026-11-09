@@ -81,6 +81,28 @@ def generate_rent_charges(user_id: int, dry_run: bool = False) -> list[dict]:
         is_active=True
     ).all()
 
+    # Auto-close any contracts whose end date has passed
+    if not dry_run:
+        from app.models import Room
+        for contract in contracts:
+            if contract.end_date and contract.end_date < today:
+                contract.is_active = False
+                room = Room.query.get(contract.room_id)
+                if room:
+                    room.is_occupied = False
+        db.session.flush()
+        # Reload — only keep contracts still active after auto-close
+        contracts = TenantContract.query.filter_by(
+            user_id=user_id,
+            is_active=True
+        ).all()
+    else:
+        # In dry_run mode filter out expired contracts for preview
+        contracts = [
+            c for c in contracts
+            if not c.end_date or c.end_date >= today
+        ]
+
     for contract in contracts:
         tenant = Tenant.query.get(contract.tenant_id)
         if not tenant:
@@ -91,13 +113,20 @@ def generate_rent_charges(user_id: int, dry_run: bool = False) -> list[dict]:
         if not charge_date:
             continue
 
+        # Cap charges at the contract end date if set
+        # A tenant leaving 28 Oct should be charged up to and including October
+        # but NOT November onwards
+        charge_until = today
+        if contract.end_date and contract.end_date < today:
+            charge_until = contract.end_date
+
         paid_periods    = get_paid_periods(contract.tenant_id)
         charged_periods = get_charged_periods(contract.tenant_id)
 
-        periods_charged = 0
+        periods_charged  = 0
         last_charge_date = None
 
-        while charge_date <= today:
+        while charge_date <= charge_until:
             pk = period_key(charge_date)
 
             # Skip if already paid for this month
@@ -152,8 +181,8 @@ def generate_rent_charges(user_id: int, dry_run: bool = False) -> list[dict]:
             periods_charged += 1
             charge_date = advance_one_month(charge_date)
 
-        # Update next_rent_due to the next upcoming date after today
-        if not dry_run and periods_charged > 0:
+        # Update next_rent_due only if contract is still active
+        if not dry_run and periods_charged > 0 and contract.is_active:
             contract.next_rent_due = charge_date
 
     if not dry_run:
