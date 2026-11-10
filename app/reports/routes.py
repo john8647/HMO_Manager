@@ -3,7 +3,9 @@ from flask import (Blueprint, render_template, redirect, url_for,
 from flask_login import login_required, current_user
 from datetime import date
 from app.models import Property, Transaction, Expense
-from app.reports.quickfile import build_quickfile_csv, get_tax_year_dates
+from app.reports.quickfile import (build_quickfile_csv,
+                                    build_retained_deposit_rows,
+                                    get_tax_year_dates)
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -18,9 +20,8 @@ def index():
             user_id=current_user.id
         ).order_by(Property.address_line1).all()
 
-    # Build list of available tax years (from 2023 to current+1)
     current_year = date.today().year
-    tax_years = list(range(2024, current_year + 2))
+    tax_years    = list(range(2024, current_year + 2))
 
     return render_template('reports/index.html',
                            properties=properties,
@@ -31,10 +32,10 @@ def index():
 @reports_bp.route('/quickfile/export')
 @login_required
 def quickfile_export():
-    property_id  = request.args.get('property_id')
-    tax_year     = request.args.get('tax_year', type=int)
-    sort_code    = request.args.get('sort_code', '').strip()
-    account_num  = request.args.get('account_number', '').strip()
+    property_id    = request.args.get('property_id')
+    tax_year       = request.args.get('tax_year', type=int)
+    sort_code      = request.args.get('sort_code', '').strip()
+    account_num    = request.args.get('account_number', '').strip()
 
     if not property_id or not tax_year:
         flash('Please select a property and tax year.', 'error')
@@ -46,7 +47,9 @@ def quickfile_export():
 
     period_start, period_end = get_tax_year_dates(tax_year)
 
-    # Fetch all matched transactions for this user in the period
+    # ── Credits: matched bank import transactions for this user ──────────
+    # Exclude internal system debits and deposit credits
+    # The quickfile builder handles all filtering internally
     transactions = Transaction.query.filter(
         Transaction.user_id == current_user.id,
         Transaction.transaction_date >= period_start,
@@ -54,7 +57,7 @@ def quickfile_export():
         Transaction.is_matched == True,
     ).order_by(Transaction.transaction_date).all()
 
-    # Fetch all expenses for this property in the period
+    # ── Debits: expenses for this property only ──────────────────────────
     expenses = Expense.query.filter(
         Expense.user_id == current_user.id,
         Expense.property_id == int(property_id),
@@ -71,6 +74,33 @@ def quickfile_export():
         period_start=period_start,
         period_end=period_end,
     )
+
+    # Append any retained deposit rows (genuine income)
+    deposit_rows = build_retained_deposit_rows(
+        user_id=current_user.id,
+        property_id=int(property_id),
+        period_start=period_start,
+        period_end=period_end,
+        sort_code=sort_code,
+        account_number=account_num,
+    )
+
+    if deposit_rows:
+        import csv as csv_mod
+        import io
+        extra = io.StringIO()
+        writer = csv_mod.writer(extra, lineterminator='\r\n')
+        for row in sorted(deposit_rows, key=lambda r: r['date']):
+            writer.writerow([
+                row['date'].strftime('%d/%m/%Y'),
+                row['type'],
+                row['sort_code'],
+                row['account'],
+                row['description'],
+                row['debit'],
+                row['credit'],
+            ])
+        csv_content = csv_content.rstrip('\r\n') + '\r\n' + extra.getvalue()
 
     filename = (
         f'QuickFile_{prop.property_ref or prop.id}'

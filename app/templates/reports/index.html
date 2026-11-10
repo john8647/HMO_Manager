@@ -25,9 +25,9 @@
     </code>
     <p style="font-size:13px; margin-top:12px; color:var(--text-secondary);">
         Each tenant payment is split out by type using your auto-match rules.
-        For example if Paul Woods paid rent and bills in one transfer but you
+        For example if JIJIN JOSE paid rent and bills in one transfer but you
         split it during import, the export produces two lines:
-        <em>Paul Woods Rent</em> and <em>Paul Woods Bills</em>.
+        <em>JIJIN JOSE Rent</em> and <em>JIJIN JOSE Bills</em>.
     </p>
     <p style="font-size:13px; margin-top:6px; color:var(--text-secondary);">
         Expenses for the selected property appear as debit rows with their
@@ -77,7 +77,7 @@
         <div class="form-group">
             <label for="sort_code">Sort Code</label>
             <input type="text" id="sort_code" name="sort_code"
-                   placeholder="e.g. 11-22-33"
+                   placeholder="e.g. 11-02-12"
                    value="{{ request.args.get('sort_code','') }}">
             <span class="form-hint">
                 Your bank sort code — prefixed with ' in the export.
@@ -86,26 +86,46 @@
         <div class="form-group">
             <label for="account_number">Account Number</label>
             <input type="text" id="account_number" name="account_number"
-                   placeholder="e.g. 12345678"
+                   placeholder="e.g. 12045867"
                    value="{{ request.args.get('account_number','') }}">
         </div>
     </div>
 
     <div class="card" style="margin-bottom:20px; font-size:14px;">
-        <strong>What is included in the export:</strong>
-        <ul style="margin:8px 0 0 20px; line-height:2.2;">
-            <li>All matched credit transactions (tenant rent and bill payments)</li>
-            <li>All expenses recorded against the selected property</li>
-            <li>All manual debit transactions</li>
+        <strong>Included in the export:</strong>
+        <ul style="margin:8px 0 12px 20px; line-height:2.2;">
+            <li>
+                <strong>Credits</strong> — tenant rent and bill payments
+                received (bank import and manual cash entries)
+            </li>
+            <li>
+                <strong>Debits</strong> — expenses recorded against
+                the selected property (water, broadband, insurance,
+                repairs etc.)
+            </li>
+            <li>
+                <strong>Retained deposits</strong> — where a deposit
+                deduction was applied after move-out (genuine income)
+            </li>
             <li>Filtered to the selected tax year (6 Apr to 5 Apr)</li>
             <li>Sorted by date ascending</li>
         </ul>
-        <strong style="display:block; margin-top:10px;">
-            Not included:
-        </strong>
+        <strong>Not included:</strong>
         <ul style="margin:8px 0 0 20px; line-height:2.2;">
-            <li>Unmatched bank import rows</li>
-            <li>Draft / unconfirmed transactions</li>
+            <li>
+                <strong>Rent charge debits</strong> — these are internal
+                accounting entries only, not real bank transactions
+            </li>
+            <li>
+                <strong>Advanced Rent offset debits</strong> — internal
+                only, created when a deposit is recorded
+            </li>
+            <li>
+                <strong>Deposit credits</strong> — not income unless
+                retained after move-out (covered above)
+            </li>
+            <li>Unmatched or unconfirmed transactions</li>
+            <li>System-generated entries (source = system)</li>
         </ul>
     </div>
 

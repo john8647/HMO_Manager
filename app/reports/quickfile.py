@@ -1,6 +1,6 @@
 """
-QuickFile CSV exporter.
-
+QuickFile CSV Exporter
+======================
 Produces a CSV in the same format as the bank statement export,
 with corrected/mapped descriptions, broken down per property,
 filtered by UK tax year (6 April to 5 April).
@@ -9,14 +9,23 @@ Format matches QuickFile manual import:
 Transaction Date, Transaction Type, Sort Code, Account Number,
 Transaction Description, Debit Amount, Credit Amount
 
-Key rules:
-- Each transaction line uses the Preferred Description from TransactionLegend
-  combined with the Income/Expense Type, so one bank pattern (e.g. JIJIN JOSE)
-  can produce multiple lines (JIJIN JOSE Rent, JIJIN JOSE Bills) when split
-- Credits = income received (rent, bill shares paid by tenant)
-- Debits = expenses paid out (water, broadband, insurance, repairs etc.)
-- Only credit transactions linked to this property's tenants are included
-- All expenses for this property are included as debits
+INCLUSION RULES
+---------------
+INCLUDE as Credits (income):
+  - Rent payments received (type='Rent', credit_debit='cr', source='bank_import')
+  - Bill share payments received (type='Gas/Electric' etc, cr, bank_import)
+  - Deposit retained deductions (where deposit.deduction_amount > 0 or status='withdrawn')
+
+INCLUDE as Debits (expenses):
+  - Expenses recorded against this property
+  - Manual debit transactions that originated from real payments (source != 'system')
+
+EXCLUDE:
+  - Rent debit charges (type='Rent', credit_debit='db') — internal accounting only
+  - Advanced Rent debit offsets (type='Advanced Rent', credit_debit='db') — internal
+  - System-generated transactions (source='system')
+  - Deposit credits (type='Deposit') — not income until retained
+  - Unmatched transactions
 """
 
 import csv
@@ -35,6 +44,12 @@ HEADERS = [
     'Credit Amount',
 ]
 
+# Transaction types that are internal accounting only — never export
+INTERNAL_DEBIT_TYPES = {'Rent', 'Advanced Rent'}
+
+# Transaction types that are not income until a deposit is retained
+DEPOSIT_TYPES = {'Deposit'}
+
 
 def get_tax_year_dates(year: int) -> tuple[date, date]:
     """
@@ -50,9 +65,9 @@ def build_quickfile_csv(transactions, expenses, prop,
     """
     Build a QuickFile-ready CSV string.
 
-    transactions: list of Transaction model instances (credits and debits)
-    expenses: list of Expense model instances for this property
-    prop: Property model instance
+    transactions: list of Transaction model instances
+    expenses:     list of Expense model instances for this property
+    prop:         Property model instance
     """
     output = io.StringIO()
     writer = csv.writer(output, lineterminator='\r\n')
@@ -63,20 +78,26 @@ def build_quickfile_csv(transactions, expenses, prop,
 
     rows = []
 
-    # ── Income rows (credits) ─────────────────────────────────────────────────
-    # Only include credit transactions — these are payments received from tenants
+    # ── Credit rows (income received) ────────────────────────────────────
     for t in transactions:
         if t.credit_debit != 'cr':
             continue
 
-        # Build the QuickFile description:
-        # Preferred description from legend + type label
-        # e.g. "JIJIN JOSE Rent" or "JIJIN JOSE Bills"
-        description = _build_description(t)
+        # Skip internal system entries
+        if t.source == 'system':
+            continue
+
+        # Skip deposit credits — not income until retained
+        if t.type in DEPOSIT_TYPES:
+            continue
+
+        # Only include matched bank import transactions
+        # (manual cash entries are included too — source='manual' or 'cash')
+        description = (t.notes or t.type or 'Payment').strip()
 
         rows.append({
             'date':        t.transaction_date,
-            'type':        t.bank_ref or 'FPI',
+            'type':        'FPI',
             'sort_code':   sc,
             'account':     an,
             'description': description,
@@ -84,15 +105,10 @@ def build_quickfile_csv(transactions, expenses, prop,
             'credit':      f'{t.amount:.2f}',
         })
 
-    # ── Expense rows (debits) ─────────────────────────────────────────────────
-    # Expenses for this property become debit rows
+    # ── Debit rows (expenses paid out) ───────────────────────────────────
+    # From Expense table — these are real payments
     for e in expenses:
-        description = e.description
-        if e.charge_type:
-            # Use charge type name as suffix if not already in description
-            if e.charge_type.charge_name.lower() not in description.lower():
-                description = f'{description}'
-
+        description = e.description or 'Expense'
         rows.append({
             'date':        e.expense_date,
             'type':        'DD' if e.source == 'bank' else 'TRF',
@@ -103,23 +119,34 @@ def build_quickfile_csv(transactions, expenses, prop,
             'credit':      '',
         })
 
-    # Also include debit transactions not linked to expenses
-    # (manual debit entries, bank-imported debits)
+    # Debit transactions NOT from expenses and NOT internal accounting
     for t in transactions:
         if t.credit_debit != 'db':
             continue
-        # Skip if this was already captured from expenses table
-        if t.source in ('manual', 'bank_import'):
-            description = _build_description(t)
-            rows.append({
-                'date':        t.transaction_date,
-                'type':        t.bank_ref or 'DD',
-                'sort_code':   sc,
-                'account':     an,
-                'description': description,
-                'debit':       f'{t.amount:.2f}',
-                'credit':      '',
-            })
+
+        # Exclude ALL internal rent/advanced rent charges
+        if t.type in INTERNAL_DEBIT_TYPES:
+            continue
+
+        # Exclude system-generated entries
+        if t.source == 'system':
+            continue
+
+        # Exclude if this debit came from an expense record
+        # (already captured above from the Expense table)
+        if t.expense_id:
+            continue
+
+        description = (t.notes or t.type or 'Payment').strip()
+        rows.append({
+            'date':        t.transaction_date,
+            'type':        'DD',
+            'sort_code':   sc,
+            'account':     an,
+            'description': description,
+            'debit':       f'{t.amount:.2f}',
+            'credit':      '',
+        })
 
     # Sort all rows by date ascending
     rows.sort(key=lambda r: r['date'])
@@ -138,35 +165,58 @@ def build_quickfile_csv(transactions, expenses, prop,
     return output.getvalue()
 
 
-def _build_description(transaction) -> str:
+def build_retained_deposit_rows(user_id: int, property_id: int,
+                                 period_start: date, period_end: date,
+                                 sort_code: str = '',
+                                 account_number: str = '') -> list[dict]:
     """
-    Build the QuickFile transaction description from a Transaction record.
+    Returns QuickFile rows for any deposit deductions that are
+    genuine income (retained deposits after move-out).
 
-    Priority:
-    1. transaction.notes (if it was set from a preferred_description during import)
-    2. type field (e.g. 'Rent', 'Gas/Electric')
-    3. Fall back to 'Unknown'
-
-    For split transactions the notes field holds e.g. "JIJIN JOSE Rent"
-    already set during the split/match process.
-
-    The goal is to produce lines like:
-        JIJIN JOSE Rent
-        JIJIN JOSE Bills
-        SAUDAGAR Rent
-        VIRGIN MEDIA PYMTS
+    Only includes deposits where:
+      - status = 'withdrawn' (fully retained) OR
+      - deduction_amount > 0 (partial retention)
+    AND the returned_date falls within the export period.
     """
-    # If notes already contains a preferred description (set during matching)
-    notes = (transaction.notes or '').strip()
+    from app.models import Deposit, Tenant
 
-    # If the note looks like a bank description + type (set during split)
-    # it's already in the right format
-    if notes and not notes.startswith('Split from:'):
-        return notes
+    sc = f"'{sort_code}" if sort_code else ''
+    rows = []
 
-    # Otherwise build from type
-    type_label = (transaction.type or '').strip()
-    if type_label:
-        return type_label
+    deposits = Deposit.query.join(Tenant).filter(
+        Tenant.user_id == user_id,
+    ).all()
 
-    return 'Unknown'
+    for dep in deposits:
+        # Only retained deposits are income
+        if dep.status not in ('withdrawn', 'paid'):
+            continue
+
+        deduction = Decimal(str(dep.deduction_amount or 0))
+        if deduction <= Decimal('0.00'):
+            continue
+
+        # Use returned_date as the transaction date
+        ref_date = dep.returned_date or dep.date_received
+        if not ref_date:
+            continue
+
+        if not (period_start <= ref_date <= period_end):
+            continue
+
+        tenant_name = dep.tenant.full_name if dep.tenant else 'Unknown'
+        description = f'{tenant_name} Deposit Retained'
+        if dep.deduction_reason:
+            description += f' — {dep.deduction_reason[:50]}'
+
+        rows.append({
+            'date':        ref_date,
+            'type':        'TRF',
+            'sort_code':   sc,
+            'account':     account_number,
+            'description': description,
+            'debit':       '',
+            'credit':      f'{deduction:.2f}',
+        })
+
+    return rows
