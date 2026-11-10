@@ -287,43 +287,69 @@ def add_contract(tenant_id):
 
         db.session.commit()
 
-        # Auto-generate rent charges from contract start to today
-        # This ensures the first month debit exists immediately so
-        # bank imports can match against it cleanly
+        messages = []
+
+        # 1. Auto-generate rent charges from contract start to today
         try:
             from app.invoices.rent_engine import generate_rent_charges
+            from app.models import Transaction as Tx
+            from decimal import Decimal as D
+
             charges = generate_rent_charges(user_id=current_user.id)
-            if charges:
-                tenant_charges = [
-                    c for c in charges if c['contract_id'] == contract.id
-                ]
-                if tenant_charges:
-                    flash(
-                        f'Contract created for {tenant.full_name}. '
-                        f'{len(tenant_charges)} rent charge(s) generated '
-                        f'from {tenant_charges[0]["period"]} to '
-                        f'{tenant_charges[-1]["period"]}.',
-                        'success'
-                    )
-                else:
-                    flash(
-                        f'Contract created for {tenant.full_name}.',
-                        'success'
-                    )
-            else:
-                flash(
-                    f'Contract created for {tenant.full_name}.',
-                    'success'
+            tenant_charges = [
+                c for c in charges if c['contract_id'] == contract.id
+            ]
+            if tenant_charges:
+                messages.append(
+                    f'{len(tenant_charges)} rent charge(s) generated '
+                    f'({tenant_charges[0]["period"]} to '
+                    f'{tenant_charges[-1]["period"]})'
                 )
         except Exception as e:
-            # Don't block contract creation if rent engine fails
-            flash(
-                f'Contract created for {tenant.full_name}. '
-                f'Note: rent charges could not be auto-generated ({e}). '
-                f'Run them manually from the Rent Roll.',
-                'warning'
+            messages.append(
+                f'Rent charges could not be auto-generated ({e}) — '
+                f'run manually from Rent Roll'
             )
 
+        # 2. Create Advanced Rent debit charge if agreed on contract
+        if advanced_rent_val and advanced_rent_val > 0:
+            try:
+                from app.models import Transaction as Tx
+                from decimal import Decimal as D
+                adv_amount = D(str(advanced_rent_val))
+                adv_charge = Tx(
+                    tenant_id=tenant.id,
+                    contract_id=contract.id,
+                    amount=adv_amount,
+                    credit_debit='db',
+                    transaction_date=start_date,
+                    user_id=current_user.id,
+                    type='Advanced Rent',
+                    month_year_period=start_date.strftime('%B %Y'),
+                    source='system',
+                    is_matched=True,
+                    notes=(
+                        f'Advanced Rent — {contract.room.room_name} '
+                        f'({contract.property.address_line1})'
+                    ),
+                )
+                db.session.add(adv_charge)
+
+                # Add to tenant rent balance so it shows as outstanding
+                tenant.rent_balance = (
+                    D(str(tenant.rent_balance or 0)) + adv_amount
+                )
+                db.session.commit()
+                messages.append(
+                    f'Advanced rent charge of £{adv_amount:.2f} created'
+                )
+            except Exception as e:
+                messages.append(f'Advanced rent charge failed ({e})')
+
+        msg = f'Contract created for {tenant.full_name}.'
+        if messages:
+            msg += ' ' + '; '.join(messages) + '.'
+        flash(msg, 'success')
         return redirect(url_for('tenants.view', tenant_id=tenant.id))
 
     return render_template('tenants/add_contract.html',

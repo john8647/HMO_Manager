@@ -40,6 +40,57 @@ def get_outstanding_invoices(tenant_id: int) -> list:
     ).all()
 
 
+def get_outstanding_system_charges(tenant_id: int) -> dict:
+    """
+    Return outstanding system-generated debit charges not covered
+    by existing credits. Used when no invoices exist.
+
+    Returns dict with:
+        rent_owed:         Decimal — uncovered Rent debits
+        advanced_rent_owed: Decimal — uncovered Advanced Rent debits
+    """
+    from app.invoices.rent_engine import period_key
+
+    # Rent debits vs credits
+    rent_debits = Transaction.query.filter_by(
+        tenant_id=tenant_id,
+        credit_debit='db',
+        type='Rent',
+    ).all()
+    rent_credits = Transaction.query.filter_by(
+        tenant_id=tenant_id,
+        credit_debit='cr',
+        type='Rent',
+    ).all()
+
+    paid_periods = {period_key(t.transaction_date) for t in rent_credits}
+    rent_owed = sum(
+        Decimal(str(t.amount)) for t in rent_debits
+        if period_key(t.transaction_date) not in paid_periods
+    )
+
+    # Advanced Rent debits vs credits
+    adv_debits = Transaction.query.filter_by(
+        tenant_id=tenant_id,
+        credit_debit='db',
+        type='Advanced Rent',
+    ).all()
+    adv_credits = Transaction.query.filter_by(
+        tenant_id=tenant_id,
+        credit_debit='cr',
+        type='Advanced Rent',
+    ).all()
+
+    total_adv_charged = sum(Decimal(str(t.amount)) for t in adv_debits)
+    total_adv_paid    = sum(Decimal(str(t.amount)) for t in adv_credits)
+    advanced_rent_owed = max(total_adv_charged - total_adv_paid, Decimal('0.00'))
+
+    return {
+        'rent_owed':          rent_owed,
+        'advanced_rent_owed': advanced_rent_owed,
+    }
+
+
 def invoice_outstanding(invoice: Invoice) -> Decimal:
     """Return the outstanding balance on an invoice."""
     total = Decimal(str(invoice.total_due or 0))
@@ -285,10 +336,71 @@ def auto_match_payment(
             db.session.add(ip)
 
     if not summary:
-        # No outstanding invoices found — payment arrived before rent
-        # charge was generated (tenant paid early / on standing order).
-        # Always label as Rent so the rent engine skips this month.
-        if surplus > Decimal('0.00'):
+        # No outstanding invoices — use system charge debits to split
+        charges = get_outstanding_system_charges(tenant_id)
+        rent_owed     = charges['rent_owed']
+        adv_rent_owed = charges['advanced_rent_owed']
+        total_owed    = rent_owed + adv_rent_owed
+
+        if total_owed > Decimal('0.00') and surplus > Decimal('0.00'):
+            # Split payment across rent and advanced rent
+            rent_portion = min(rent_owed, surplus)
+            surplus -= rent_portion
+
+            adv_portion = min(adv_rent_owed, surplus)
+            surplus -= adv_portion
+
+            if rent_portion > Decimal('0.00'):
+                t_r = Transaction(
+                    tenant_id=tenant_id,
+                    amount=rent_portion,
+                    credit_debit='cr',
+                    transaction_date=payment_date,
+                    user_id=user_id,
+                    type='Rent',
+                    month_year_period=payment_date.strftime('%B %Y'),
+                    source='bank_import',
+                    bank_import_id=bank_import_id,
+                    is_matched=True,
+                    notes=f'{base_desc} Rent'.strip(),
+                )
+                db.session.add(t_r)
+                transactions.append(t_r)
+                rent_alloc += rent_portion
+                summary.append(
+                    f'£{rent_portion:.2f} matched to rent charge.'
+                )
+
+            if adv_portion > Decimal('0.00'):
+                t_a = Transaction(
+                    tenant_id=tenant_id,
+                    amount=adv_portion,
+                    credit_debit='cr',
+                    transaction_date=payment_date,
+                    user_id=user_id,
+                    type='Advanced Rent',
+                    month_year_period=payment_date.strftime('%B %Y'),
+                    source='bank_import',
+                    bank_import_id=bank_import_id,
+                    is_matched=True,
+                    notes=f'{base_desc} Advanced Rent'.strip(),
+                )
+                db.session.add(t_a)
+                transactions.append(t_a)
+                summary.append(
+                    f'£{adv_portion:.2f} matched to advanced rent charge.'
+                )
+
+            # Update tenant balance
+            tenant = Tenant.query.get(tenant_id)
+            if tenant:
+                tenant.rent_balance = (
+                    Decimal(str(tenant.rent_balance or 0))
+                    - rent_portion - adv_portion
+                )
+
+        elif surplus > Decimal('0.00'):
+            # No charges outstanding — pure early payment
             t_rent = Transaction(
                 tenant_id=tenant_id,
                 amount=surplus,

@@ -38,15 +38,52 @@
         <label for="type">Transaction Type <span style="color:var(--error);">*</span></label>
         <select id="type" name="type" required>
             <option value="">— Select type —</option>
-            <option value="Rent">Rent</option>
-            <option value="Gas/Electric">Gas/Electric</option>
-            <option value="Council Tax">Council Tax</option>
-            <option value="Deposit">Deposit</option>
-            <option value="Maintenance">Maintenance</option>
-            <option value="Expense">Expense</option>
-            <option value="Refund">Refund</option>
-            <option value="Other">Other</option>
+            <optgroup label="Tenant Income">
+                <option value="Rent"
+                    {% if request.form.get('type') == 'Rent' %}selected{% endif %}>
+                    Rent
+                </option>
+                <option value="Advanced Rent"
+                    {% if request.form.get('type') == 'Advanced Rent' %}selected{% endif %}>
+                    Advanced Rent
+                </option>
+                <option value="Deposit"
+                    {% if request.form.get('type') == 'Deposit' %}selected{% endif %}>
+                    Deposit
+                </option>
+                <option value="Gas/Electric"
+                    {% if request.form.get('type') == 'Gas/Electric' %}selected{% endif %}>
+                    Gas/Electric (Bill Share)
+                </option>
+                <option value="Council Tax"
+                    {% if request.form.get('type') == 'Council Tax' %}selected{% endif %}>
+                    Council Tax (Bill Share)
+                </option>
+            </optgroup>
+            <optgroup label="Expenses">
+                <option value="Maintenance"
+                    {% if request.form.get('type') == 'Maintenance' %}selected{% endif %}>
+                    Maintenance
+                </option>
+                <option value="Expense"
+                    {% if request.form.get('type') == 'Expense' %}selected{% endif %}>
+                    Expense
+                </option>
+                <option value="Refund"
+                    {% if request.form.get('type') == 'Refund' %}selected{% endif %}>
+                    Refund
+                </option>
+                <option value="Other"
+                    {% if request.form.get('type') == 'Other' %}selected{% endif %}>
+                    Other
+                </option>
+            </optgroup>
         </select>
+        <span class="form-hint">
+            Use <strong>Deposit</strong> for a manually entered deposit payment.
+            Use <strong>Advanced Rent</strong> for a manually entered advance
+            payment where a contract advance was agreed.
+        </span>
     </div>
 
     <div class="form-group">
