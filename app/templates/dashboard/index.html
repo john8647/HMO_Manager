@@ -2,46 +2,262 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<h1>Dashboard</h1>
 
-<div class="card-grid">
-    <div class="card">
-        <div class="card-title">Properties</div>
-        <div class="card-value">—</div>
-        <div class="card-sub">Active HMOs</div>
+<h1>Dashboard
+  <span style="font-size:14px;font-weight:400;color:var(--grey-dark);margin-left:12px;">
+    {{ today.strftime('%A %d %B %Y') }}
+  </span>
+</h1>
+
+{# ── Global summary strip ───────────────────────────────────────────── #}
+<div class="card-grid" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); margin-bottom: 32px;">
+
+  <div class="card" style="text-align:center;">
+    <div class="card-title">Properties</div>
+    <div class="card-value">{{ total_properties }}</div>
+    <div class="card-sub">Total</div>
+  </div>
+
+  <div class="card" style="text-align:center;">
+    <div class="card-title">Active Tenants</div>
+    <div class="card-value">{{ total_active_tenants }}</div>
+    <div class="card-sub">{{ total_vacant }} room{% if total_vacant != 1 %}s{% endif %} vacant</div>
+  </div>
+
+  <div class="card" style="text-align:center;border-top-color:{% if total_money_outstanding > 0 %}var(--error){% else %}var(--green-primary){% endif %};">
+    <div class="card-title">Total Owed</div>
+    <div class="card-value" style="color:{% if total_money_outstanding > 0 %}var(--error){% else %}var(--green-dark){% endif %};">
+      £{{ "%.0f"|format(total_money_outstanding) }}
     </div>
-    <div class="card">
-        <div class="card-title">Active Tenants</div>
-        <div class="card-value">—</div>
-        <div class="card-sub">Current contracts</div>
+    <div class="card-sub">Rent &amp; bills</div>
+  </div>
+
+  <div class="card" style="text-align:center;border-top-color:{% if total_compliance_issues > 0 %}#f47738{% else %}var(--green-primary){% endif %};">
+    <div class="card-title">Compliance</div>
+    <div class="card-value" style="color:{% if total_compliance_issues > 0 %}#b35900{% else %}var(--green-dark){% endif %};">
+      {{ total_compliance_issues }}
     </div>
-    <div class="card">
-        <div class="card-title">Rent Overdue</div>
-        <div class="card-value">—</div>
-        <div class="card-sub">Payments outstanding</div>
+    <div class="card-sub">Alert{% if total_compliance_issues != 1 %}s{% endif %}</div>
+  </div>
+
+  <div class="card" style="text-align:center;border-top-color:{% if total_task_alerts > 0 %}#f47738{% else %}var(--green-primary){% endif %};">
+    <div class="card-title">Tasks</div>
+    <div class="card-value" style="color:{% if total_task_alerts > 0 %}#b35900{% else %}var(--green-dark){% endif %};">
+      {{ total_task_alerts }}
     </div>
-    <div class="card">
-        <div class="card-title">Invoices This Month</div>
-        <div class="card-value">—</div>
-        <div class="card-sub">Generated</div>
-    </div>
+    <div class="card-sub">Due / overdue</div>
+  </div>
+
 </div>
 
-<h2>Quick Links</h2>
-<div style="display: flex; gap: 12px; flex-wrap: wrap;">
-    <a href="{{ url_for('properties.index') }}" class="btn btn-primary">Properties &amp; Rooms</a>
-    <a href="{{ url_for('tenants.index') }}" class="btn btn-primary">Tenants</a>
-    <a href="{{ url_for('bills.index') }}" class="btn btn-primary">Enter Bills</a>
-    <a href="{{ url_for('invoices.index') }}" class="btn btn-primary">Invoices</a>
-    <a href="{{ url_for('transactions.index') }}" class="btn btn-primary">Transactions</a>
-    <a href="{{ url_for('compliance.index') }}" class="btn btn-primary">Compliance</a>
-    <a href="{{ url_for('tasks.index') }}" class="btn btn-primary">Tasks</a>
-    {% if current_user.role == 'admin' %}
-    <a href="{{ url_for('admin.index') }}" class="btn btn-secondary">Admin Panel</a>
-    {% endif %}
-</div>
+{# ── No properties state ─────────────────────────────────────────────── #}
+{% if not cards %}
+  <div class="alert">
+    No properties found. <a href="{{ url_for('properties.add') }}">Add your first property</a>.
+  </div>
+{% endif %}
 
-<h2 class="mt-3">Welcome, {{ current_user.username }}</h2>
-<p>Logged in as <strong>{{ current_user.role }}</strong>.
-Use the navigation on the left to get started.</p>
+{# ── Per-property cards ──────────────────────────────────────────────── #}
+<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); gap:24px;">
+
+{% for card in cards %}
+  {% set prop = card.property %}
+  <div style="
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-top: 4px solid {% if card.status == 'danger' %}var(--error){% elif card.status == 'warning' %}#f47738{% else %}var(--green-primary){% endif %};
+    border-radius: 2px;
+  ">
+
+    {# ── Property header ── #}
+    <div style="padding:16px 20px 12px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:flex-start;">
+      <div>
+        <div style="font-size:17px; font-weight:700;">
+          <a href="{{ url_for('properties.view', property_id=prop.id) }}" style="color:var(--green-dark); text-decoration:none;">
+            {{ prop.address_line1 }}{% if prop.address_line2 %}, {{ prop.address_line2 }}{% endif %}
+          </a>
+        </div>
+        <div style="font-size:13px; color:var(--grey-dark); margin-top:2px;">
+          {{ prop.city }}{% if prop.postcode %} &middot; {{ prop.postcode }}{% endif %}
+        </div>
+      </div>
+      <span class="badge
+        {% if card.status == 'danger' %}badge-red
+        {% elif card.status == 'warning' %}badge-yellow
+        {% else %}badge-green{% endif %}">
+        {% if card.status == 'danger' %}Action Needed
+        {% elif card.status == 'warning' %}Attention
+        {% else %}All Good{% endif %}
+      </span>
+    </div>
+
+    {# ── Occupancy + balance row ── #}
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; border-bottom:1px solid var(--border);">
+
+      <div style="padding:14px 20px; text-align:center; border-right:1px solid var(--border);">
+        <div style="font-size:26px; font-weight:700; color:var(--green-dark);">{{ card.active_count }}</div>
+        <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--grey-dark);">Tenants</div>
+        {% if card.vacant_count > 0 %}
+        <div style="font-size:12px; color:#b35900; margin-top:2px;">{{ card.vacant_count }} vacant</div>
+        {% endif %}
+      </div>
+
+      <div style="padding:14px 20px; text-align:center; border-right:1px solid var(--border);">
+        <div style="font-size:26px; font-weight:700; color:{% if card.total_rent_outstanding > 0 %}var(--error){% else %}var(--green-dark){% endif %};">
+          £{{ "%.0f"|format(card.total_rent_outstanding) }}
+        </div>
+        <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--grey-dark);">Rent Owed</div>
+      </div>
+
+      <div style="padding:14px 20px; text-align:center;">
+        <div style="font-size:26px; font-weight:700; color:{% if card.total_bills_outstanding > 0 %}#b35900{% else %}var(--green-dark){% endif %};">
+          £{{ "%.0f"|format(card.total_bills_outstanding) }}
+        </div>
+        <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--grey-dark);">Bills Owed</div>
+      </div>
+
+    </div>
+
+    {# ── Alert sections ── #}
+    <div style="padding:0 20px;">
+
+      {# Overdue tenants #}
+      {% if card.overdue_tenants %}
+      <div style="padding:12px 0; border-bottom:1px solid var(--border);">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--error); margin-bottom:8px;">
+          &#9888; Overdue Balances
+        </div>
+        <table style="margin:0; font-size:14px;">
+          {% for ot in card.overdue_tenants %}
+          <tr>
+            <td style="padding:4px 0; border:none;">
+              <a href="{{ url_for('tenants.view', id=ot.tenant.id) }}" style="color:var(--text-primary); text-decoration:none;">
+                {{ ot.tenant.first_name }} {{ ot.tenant.last_name }}
+              </a>
+            </td>
+            <td style="padding:4px 0 4px 24px; border:none; text-align:right; color:var(--error); font-weight:700;">
+              £{{ "%.2f"|format(ot.rent_owed + ot.bills_owed) }}
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+      {% endif %}
+
+      {# Compliance alerts #}
+      {% if card.compliance_expired or card.compliance_due %}
+      <div style="padding:12px 0; border-bottom:1px solid var(--border);">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#b35900; margin-bottom:8px;">
+          &#9200; Compliance Documents
+        </div>
+        <table style="margin:0; font-size:14px;">
+          {% for doc in card.compliance_expired %}
+          <tr>
+            <td style="padding:4px 0; border:none; color:var(--error);">
+              {{ doc.document_type }}
+              <span style="color:var(--grey-dark); font-size:12px;"> — expired {{ doc.expiry_date.strftime('%d %b %Y') }}</span>
+            </td>
+            <td style="padding:4px 0 4px 24px; border:none; text-align:right;">
+              <a href="{{ url_for('compliance.edit', doc_id=doc.id) }}" class="btn btn-sm btn-danger">Renew</a>
+            </td>
+          </tr>
+          {% endfor %}
+          {% for doc in card.compliance_due %}
+          <tr>
+            <td style="padding:4px 0; border:none; color:#b35900;">
+              {{ doc.document_type }}
+              <span style="color:var(--grey-dark); font-size:12px;"> — expires {{ doc.expiry_date.strftime('%d %b %Y') }}</span>
+            </td>
+            <td style="padding:4px 0 4px 24px; border:none; text-align:right;">
+              <a href="{{ url_for('compliance.edit', doc_id=doc.id) }}" class="btn btn-sm btn-secondary">View</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+      {% endif %}
+
+      {# Tasks #}
+      {% if card.tasks_overdue or card.tasks_due %}
+      <div style="padding:12px 0; border-bottom:1px solid var(--border);">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#b35900; margin-bottom:8px;">
+          &#10003; Tasks — due within {{ lookahead_days }} days
+        </div>
+        <table style="margin:0; font-size:14px;">
+          {% for task in card.tasks_overdue %}
+          <tr>
+            <td style="padding:4px 0; border:none;">
+              <a href="{{ url_for('tasks.edit', task_id=task.id) }}" style="color:var(--error); font-weight:600; text-decoration:none;">
+                {{ task.title }}
+              </a>
+              <span style="color:var(--grey-dark); font-size:12px;"> — was due {{ task.due_date.strftime('%d %b') }}</span>
+            </td>
+            <td style="padding:4px 0 4px 24px; border:none; text-align:right;">
+              <span class="badge badge-red">{{ task.priority }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+          {% for task in card.tasks_due %}
+          <tr>
+            <td style="padding:4px 0; border:none;">
+              <a href="{{ url_for('tasks.edit', task_id=task.id) }}" style="color:var(--text-primary); text-decoration:none;">
+                {{ task.title }}
+              </a>
+              <span style="color:var(--grey-dark); font-size:12px;"> — due {{ task.due_date.strftime('%d %b') }}</span>
+            </td>
+            <td style="padding:4px 0 4px 24px; border:none; text-align:right;">
+              <span class="badge {% if task.priority in ['urgent','high'] %}badge-red{% else %}badge-grey{% endif %}">{{ task.priority }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+      {% endif %}
+
+      {# Recent payments #}
+      {% if card.recent_payments %}
+      <div style="padding:12px 0; border-bottom:1px solid var(--border);">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--grey-dark); margin-bottom:8px;">
+          Recent Payments
+        </div>
+        <table style="margin:0; font-size:14px;">
+          {% for tx in card.recent_payments %}
+          <tr>
+            <td style="padding:3px 0; border:none; color:var(--text-secondary);">
+              {{ tx.transaction_date.strftime('%d %b') }}
+              &middot;
+              {% if tx.tenant %}{{ tx.tenant.first_name }} {{ tx.tenant.last_name }}{% endif %}
+              &middot; {{ tx.type }}
+            </td>
+            <td style="padding:3px 0 3px 24px; border:none; text-align:right; color:var(--green-dark); font-weight:700;">
+              £{{ "%.2f"|format(tx.amount) }}
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+      {% endif %}
+
+      {# All clear state #}
+      {% if not card.overdue_tenants and not card.compliance_expired and not card.compliance_due and not card.tasks_overdue and not card.tasks_due %}
+      <div style="padding:14px 0; color:var(--green-dark); font-size:14px;">
+        &#10003; No alerts — everything looks good.
+      </div>
+      {% endif %}
+
+    </div>{# /padding #}
+
+    {# ── Quick links footer ── #}
+    <div style="padding:10px 20px; background:var(--grey-light); border-top:1px solid var(--border); display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="{{ url_for('properties.view', property_id=prop.id) }}" class="btn btn-sm btn-secondary">Property</a>
+      <a href="{{ url_for('invoices.rent_roll') }}?property_id={{ prop.id }}" class="btn btn-sm btn-secondary">Rent Roll</a>
+      <a href="{{ url_for('compliance.index') }}?property_id={{ prop.id }}" class="btn btn-sm btn-secondary">Compliance</a>
+      <a href="{{ url_for('tasks.index') }}?property_id={{ prop.id }}" class="btn btn-sm btn-secondary">Tasks</a>
+    </div>
+
+  </div>{# property card #}
+{% endfor %}
+
+</div>{# grid #}
+
 {% endblock %}
