@@ -178,10 +178,10 @@
       {% endif %}
 
       {# Tasks #}
-      {% if card.tasks_overdue or card.tasks_due %}
+      {% if card.tasks_overdue or card.tasks_due or card.tasks_undated %}
       <div style="padding:12px 0; border-bottom:1px solid var(--border);">
         <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#b35900; margin-bottom:8px;">
-          &#10003; Tasks — due within {{ lookahead_days }} days
+          &#9634; Tasks
         </div>
         <table style="margin:0; font-size:14px;">
           {% for task in card.tasks_overdue %}
@@ -210,6 +210,16 @@
             </td>
           </tr>
           {% endfor %}
+          {% if card.tasks_undated %}
+          <tr>
+            <td style="padding:4px 0; border:none; color:var(--grey-dark);">
+              {{ card.tasks_undated }} open task{% if card.tasks_undated != 1 %}s{% endif %} with no due date
+            </td>
+            <td style="padding:4px 0 4px 24px; border:none; text-align:right;">
+              <a href="{{ url_for('tasks.index') }}" class="btn btn-sm btn-secondary">View</a>
+            </td>
+          </tr>
+          {% endif %}
         </table>
       </div>
       {% endif %}
@@ -239,7 +249,7 @@
       {% endif %}
 
       {# All clear state #}
-      {% if not card.overdue_tenants and not card.compliance_expired and not card.compliance_due and not card.tasks_overdue and not card.tasks_due %}
+      {% if not card.overdue_tenants and not card.compliance_expired and not card.compliance_due and not card.tasks_overdue and not card.tasks_due and not card.tasks_undated %}
       <div style="padding:14px 0; color:var(--green-dark); font-size:14px;">
         &#10003; No alerts — everything looks good.
       </div>

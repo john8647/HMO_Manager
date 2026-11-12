@@ -77,24 +77,39 @@ def index():
 
         total_outstanding = total_rent_outstanding + total_bills_outstanding
 
+        # Rooms at this property (for task lookup by room_id)
+        prop_room_ids = [r.id for r in all_rooms]
+
+        def _task_base():
+            """Base filter: tasks belonging to this property by any link."""
+            from sqlalchemy import or_
+            return Task.query.filter(
+                Task.user_id == uid,
+                Task.status.in_(['open', 'in_progress']),
+                or_(
+                    Task.property_id == prop.id,
+                    Task.room_id.in_(prop_room_ids) if prop_room_ids else False,
+                    Task.tenant_id.in_(active_tenant_ids) if active_tenant_ids else False,
+                )
+            )
+
         # Tasks due within LOOKAHEAD_DAYS for this property
-        tasks_due = Task.query.filter(
-            Task.user_id == uid,
-            Task.property_id == prop.id,
-            Task.status.in_(['open', 'in_progress']),
+        tasks_due = _task_base().filter(
             Task.due_date != None,
             Task.due_date >= today,
             Task.due_date <= lookahead,
         ).order_by(Task.due_date.asc(), Task.priority.desc()).all()
 
         # Overdue tasks (past due, still open)
-        tasks_overdue = Task.query.filter(
-            Task.user_id == uid,
-            Task.property_id == prop.id,
-            Task.status.in_(['open', 'in_progress']),
+        tasks_overdue = _task_base().filter(
             Task.due_date != None,
             Task.due_date < today,
         ).order_by(Task.due_date.asc()).all()
+
+        # Open tasks with no due date (undated — just show count)
+        tasks_undated = _task_base().filter(
+            Task.due_date == None,
+        ).count()
 
         # Compliance documents expiring within LOOKAHEAD_DAYS
         compliance_due = ComplianceDocument.query.filter(
@@ -122,7 +137,7 @@ def index():
         # Overall property status flag
         if compliance_expired or tasks_overdue:
             status = 'danger'
-        elif total_outstanding > Decimal('0.01') or compliance_due or tasks_due:
+        elif total_outstanding > Decimal('0.01') or compliance_due or tasks_due or tasks_undated:
             status = 'warning'
         else:
             status = 'ok'
@@ -138,6 +153,7 @@ def index():
             'overdue_tenants': overdue_tenants,
             'tasks_due': tasks_due,
             'tasks_overdue': tasks_overdue,
+            'tasks_undated': tasks_undated,
             'compliance_due': compliance_due,
             'compliance_expired': compliance_expired,
             'recent_payments': recent_payments,
@@ -153,7 +169,8 @@ def index():
         len(c['compliance_expired']) + len(c['compliance_due']) for c in cards
     )
     total_task_alerts = sum(
-        len(c['tasks_overdue']) + len(c['tasks_due']) for c in cards
+        len(c['tasks_overdue']) + len(c['tasks_due']) + c['tasks_undated']
+        for c in cards
     )
 
     return render_template(

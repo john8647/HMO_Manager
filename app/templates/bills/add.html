@@ -41,6 +41,10 @@
                 {% if request.form.get('bill_type') == 'electric' %}selected{% endif %}>
                 Electricity
             </option>
+            <option value="gas/electric"
+                {% if request.form.get('bill_type') == 'gas/electric' %}selected{% endif %}>
+                Duel Fuel
+            </option>            
             <option value="council_tax"
                 {% if request.form.get('bill_type') == 'council_tax' %}selected{% endif %}>
                 Council Tax
