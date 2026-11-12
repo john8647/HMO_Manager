@@ -9,6 +9,8 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
+        if current_user.role == 'tenant':
+            return redirect(url_for('portal.index'))
         return redirect(url_for('dashboard.index'))
 
     if request.method == 'POST':
@@ -25,6 +27,9 @@ def login():
             login_user(user, remember=remember)
             next_page = request.args.get('next')
             flash(f'Welcome back, {user.username}!', 'success')
+            # Tenants go to their portal, everyone else to the dashboard
+            if user.role == 'tenant':
+                return redirect(next_page or url_for('portal.index'))
             return redirect(next_page or url_for('dashboard.index'))
         else:
             flash('Incorrect username or password.', 'error')
@@ -103,6 +108,8 @@ def change_password():
             current_user.set_password(new_password)
             db.session.commit()
             flash('Password changed successfully.', 'success')
+            if current_user.role == 'tenant':
+                return redirect(url_for('portal.index'))
             return redirect(url_for('dashboard.index'))
 
     return render_template('auth/change_password.html')

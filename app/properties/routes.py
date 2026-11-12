@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
+from app.utils import landlord_required
 from app import db
 from app.models import Property, Room, TenantContract
 
@@ -17,6 +18,7 @@ def get_property_or_404(property_id):
 
 @properties_bp.route('/')
 @login_required
+@landlord_required
 def index():
     if current_user.role == 'admin':
         properties = Property.query.order_by(Property.address_line1).all()
@@ -35,6 +37,7 @@ def index():
 
 @properties_bp.route('/add', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def add():
     if request.method == 'POST':
         address_line1 = request.form.get('address_line1', '').strip()
@@ -65,6 +68,7 @@ def add():
 
 @properties_bp.route('/<int:property_id>')
 @login_required
+@landlord_required
 def view(property_id):
     prop = get_property_or_404(property_id)
     rooms = prop.rooms.order_by(Room.room_name).all()
@@ -81,6 +85,7 @@ def view(property_id):
 
 @properties_bp.route('/<int:property_id>/edit', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def edit(property_id):
     prop = get_property_or_404(property_id)
 
@@ -104,6 +109,7 @@ def edit(property_id):
 
 @properties_bp.route('/<int:property_id>/delete', methods=['POST'])
 @login_required
+@landlord_required
 def delete(property_id):
     prop = get_property_or_404(property_id)
 
@@ -121,6 +127,7 @@ def delete(property_id):
 
 @properties_bp.route('/<int:property_id>/rooms/add', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def add_room(property_id):
     prop = get_property_or_404(property_id)
 
@@ -150,6 +157,7 @@ def add_room(property_id):
 
 @properties_bp.route('/<int:property_id>/rooms/<int:room_id>/edit', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def edit_room(property_id, room_id):
     prop = get_property_or_404(property_id)
     room = Room.query.filter_by(id=room_id, property_id=prop.id).first_or_404()
@@ -171,6 +179,7 @@ def edit_room(property_id, room_id):
 
 @properties_bp.route('/<int:property_id>/vacant-rooms')
 @login_required
+@landlord_required
 def vacant_rooms(property_id):
     from flask import jsonify
     prop = Property.query.filter_by(
@@ -184,6 +193,7 @@ def vacant_rooms(property_id):
 
 @properties_bp.route('/<int:property_id>/rooms/<int:room_id>/delete', methods=['POST'])
 @login_required
+@landlord_required
 def delete_room(property_id, room_id):
     prop = get_property_or_404(property_id)
     room = Room.query.filter_by(id=room_id, property_id=prop.id).first_or_404()

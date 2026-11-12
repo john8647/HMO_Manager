@@ -131,7 +131,7 @@
           {% for ot in card.overdue_tenants %}
           <tr>
             <td style="padding:4px 0; border:none;">
-              <a href="{{ url_for('tenants.view', id=ot.tenant.id) }}" style="color:var(--text-primary); text-decoration:none;">
+              <a href="{{ url_for('tenants.view', tenant_id=ot.tenant.id) }}" style="color:var(--text-primary); text-decoration:none;">
                 {{ ot.tenant.first_name }} {{ ot.tenant.last_name }}
               </a>
             </td>

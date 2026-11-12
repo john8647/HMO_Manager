@@ -1,6 +1,7 @@
 from flask import (Blueprint, render_template, redirect, url_for,
                    flash, request)
 from flask_login import login_required, current_user
+from app.utils import landlord_required
 from datetime import datetime, date, timedelta
 from app import db
 from app.models import Task, Property, Room, Tenant
@@ -10,12 +11,20 @@ tasks_bp = Blueprint('tasks', __name__)
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 CATEGORIES = [
-    ('quick_fix',    'Quick Fix',     'A small job that can be done in one visit'),
-    ('major_project','Major Project', 'A larger piece of work spanning multiple visits or weeks'),
-    ('reminder',     'Reminder',      'A scheduled reminder — no action required, just awareness'),
-    ('compliance',   'Compliance',    'Safety checks, certificate renewals, legal obligations'),
-    ('admin',        'Admin',         'Paperwork, correspondence, financial admin'),
-    ('maintenance',  'Maintenance',   'Routine upkeep and preventative work'),
+    # Landlord management categories
+    ('quick_fix',    'Quick Fix',          'A small job that can be done in one visit'),
+    ('major_project','Major Project',      'A larger piece of work spanning multiple visits or weeks'),
+    ('reminder',     'Reminder',           'A scheduled reminder — no action required, just awareness'),
+    ('compliance',   'Compliance',         'Safety checks, certificate renewals, legal obligations'),
+    ('admin',        'Admin',              'Paperwork, correspondence, financial admin'),
+    ('maintenance',  'Maintenance',        'Routine upkeep and preventative work'),
+    # Tenant-facing / shared categories
+    ('damage',       'Damage Report',      'Damage to the building or fixtures'),
+    ('neighbour',    'Neighbour Issue',    'Problems involving other residents or neighbours'),
+    ('awareness',    'Awareness',          'Just for awareness — no action required'),
+    ('correspondence','Correspondence',    'Admin correspondence or financial query'),
+    ('request',      'Management Request', 'General management request'),
+    ('contract_query','Contract Query',    'Contracts related request'),
 ]
 
 PRIORITIES = [
@@ -40,12 +49,18 @@ REPEAT_OPTIONS = [
 ]
 
 CATEGORY_COLOURS = {
-    'quick_fix':     'badge-green',
-    'major_project': 'badge-red',
-    'reminder':      'badge-yellow',
-    'compliance':    'badge-red',
-    'admin':         'badge-grey',
-    'maintenance':   'badge-yellow',
+    'quick_fix':      'badge-green',
+    'major_project':  'badge-red',
+    'reminder':       'badge-yellow',
+    'compliance':     'badge-red',
+    'admin':          'badge-grey',
+    'maintenance':    'badge-yellow',
+    'damage':         'badge-red',
+    'neighbour':      'badge-yellow',
+    'awareness':      'badge-grey',
+    'correspondence': 'badge-grey',
+    'request':        'badge-yellow',
+    'contract_query': 'badge-yellow',
 }
 
 PRIORITY_COLOURS = {
@@ -86,6 +101,7 @@ def next_due_date(current_due: date, repeat: str) -> date:
 
 @tasks_bp.route('/')
 @login_required
+@landlord_required
 def index():
     status_filter   = request.args.get('status', 'open')
     category_filter = request.args.get('category', '')
@@ -166,6 +182,7 @@ def index():
 
 @tasks_bp.route('/add', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def add():
     if current_user.role == 'admin':
         properties = Property.query.order_by(Property.address_line1).all()
@@ -198,6 +215,7 @@ def add():
         due_date_s  = request.form.get('due_date', '').strip()
         repeat      = request.form.get('repeat', 'none').strip()
         time_bound  = request.form.get('time_bound') == 'on'
+        is_public   = request.form.get('is_public') == 'on'
 
         if not title:
             flash('Title is required.', 'error')
@@ -243,6 +261,7 @@ def add():
             due_date=due_date,
             repeat=repeat,
             time_bound=time_bound,
+            is_public=is_public,
         )
         db.session.add(task)
         db.session.commit()
@@ -273,6 +292,7 @@ def add():
 
 @tasks_bp.route('/<int:task_id>', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def edit(task_id):
     task = get_task_or_404(task_id)
 
@@ -307,6 +327,7 @@ def edit(task_id):
                            if request.form.get('tenant_id') else None
         task.repeat      = request.form.get('repeat', 'none')
         task.time_bound  = request.form.get('time_bound') == 'on'
+        task.is_public   = request.form.get('is_public') == 'on'
 
         due_date_s = request.form.get('due_date', '').strip()
         if due_date_s:
@@ -357,6 +378,7 @@ def edit(task_id):
 
 @tasks_bp.route('/<int:task_id>/complete', methods=['POST'])
 @login_required
+@landlord_required
 def complete(task_id):
     task = get_task_or_404(task_id)
     task.status       = 'complete'
@@ -378,6 +400,7 @@ def complete(task_id):
             due_date=new_due,
             repeat=task.repeat,
             time_bound=task.time_bound,
+            is_public=task.is_public,
         )
         db.session.add(new_task)
         flash(
@@ -396,6 +419,7 @@ def complete(task_id):
 
 @tasks_bp.route('/<int:task_id>/cancel', methods=['POST'])
 @login_required
+@landlord_required
 def cancel(task_id):
     task = get_task_or_404(task_id)
     task.status = 'cancelled'
@@ -408,6 +432,7 @@ def cancel(task_id):
 
 @tasks_bp.route('/<int:task_id>/delete', methods=['POST'])
 @login_required
+@landlord_required
 def delete(task_id):
     task = get_task_or_404(task_id)
     db.session.delete(task)
@@ -420,6 +445,7 @@ def delete(task_id):
 
 @tasks_bp.route('/rooms/<int:property_id>')
 @login_required
+@landlord_required
 def rooms_for_property(property_id):
     from flask import jsonify
     rooms = Room.query.filter_by(

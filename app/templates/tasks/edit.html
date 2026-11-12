@@ -30,12 +30,22 @@
             <label for="category">Category</label>
             <select id="category" name="category">
                 <option value="">— Select —</option>
-                {% for val, label, _ in categories %}
+                <optgroup label="Landlord">
+                {% for val, label, _ in categories[:6] %}
                 <option value="{{ val }}"
                     {% if task.category == val %}selected{% endif %}>
                     {{ label }}
                 </option>
                 {% endfor %}
+                </optgroup>
+                <optgroup label="Tenant / Shared">
+                {% for val, label, _ in categories[6:] %}
+                <option value="{{ val }}"
+                    {% if task.category == val %}selected{% endif %}>
+                    {{ label }}
+                </option>
+                {% endfor %}
+                </optgroup>
             </select>
         </div>
         <div class="form-group">
@@ -82,13 +92,40 @@
         </div>
     </div>
 
-    <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
         <input type="checkbox" id="time_bound" name="time_bound"
                style="width:auto;"
                {% if task.time_bound %}checked{% endif %}>
         <label for="time_bound" style="font-weight:normal; margin:0;">
             Time-bound — this task has a hard deadline
         </label>
+    </div>
+
+    <div style="
+        border:1px solid var(--border);
+        border-left:4px solid var(--green-primary);
+        padding:14px 16px;
+        margin-bottom:16px;
+        border-radius:2px;
+        background:var(--grey-light);
+    ">
+        <div style="font-weight:700; font-size:14px; margin-bottom:4px;">Visibility</div>
+        <div style="font-size:13px; color:var(--text-secondary); margin-bottom:10px;">
+            Private tasks are visible to landlords only.
+            Public tasks can be shared with tenants at the linked property.
+        </div>
+        <div style="display:flex; gap:20px;">
+            <label style="display:flex; align-items:center; gap:7px; font-weight:normal; cursor:pointer;">
+                <input type="radio" name="is_public" value="off"
+                       {% if not task.is_public %}checked{% endif %}>
+                <span>&#128274; Private <span style="font-size:12px; color:var(--text-secondary);">(landlord only)</span></span>
+            </label>
+            <label style="display:flex; align-items:center; gap:7px; font-weight:normal; cursor:pointer;">
+                <input type="radio" name="is_public" value="on"
+                       {% if task.is_public %}checked{% endif %}>
+                <span>&#127758; Public <span style="font-size:12px; color:var(--text-secondary);">(visible to tenants)</span></span>
+            </label>
+        </div>
     </div>
 </div>
 

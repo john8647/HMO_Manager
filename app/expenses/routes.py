@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
+from app.utils import landlord_required
 from datetime import datetime
 from decimal import Decimal
 from app import db
@@ -18,6 +19,7 @@ def get_expense_or_404(expense_id):
 
 @expenses_bp.route('/')
 @login_required
+@landlord_required
 def index():
     if current_user.role == 'admin':
         properties = Property.query.order_by(Property.address_line1).all()
@@ -61,6 +63,7 @@ def index():
 
 @expenses_bp.route('/add', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def add():
     if current_user.role == 'admin':
         properties = Property.query.order_by(Property.address_line1).all()
@@ -154,6 +157,7 @@ def add():
 
 @expenses_bp.route('/<int:expense_id>/edit', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def edit(expense_id):
     expense = get_expense_or_404(expense_id)
     if current_user.role == 'admin':
@@ -211,6 +215,7 @@ def edit(expense_id):
 
 @expenses_bp.route('/<int:expense_id>/delete', methods=['POST'])
 @login_required
+@landlord_required
 def delete(expense_id):
     expense = get_expense_or_404(expense_id)
     db.session.delete(expense)

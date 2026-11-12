@@ -1,6 +1,7 @@
 from flask import (Blueprint, render_template, redirect, url_for,
                    flash, request)
 from flask_login import login_required, current_user
+from app.utils import landlord_required
 from functools import wraps
 from datetime import datetime
 from app import db
@@ -25,6 +26,7 @@ def admin_required(f):
 
 @admin_bp.route('/')
 @login_required
+@landlord_required
 @admin_required
 def index():
     users     = User.query.order_by(User.role, User.username).all()
@@ -61,6 +63,7 @@ def index():
 
 @admin_bp.route('/landlord/add', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 @admin_required
 def add_landlord():
     if request.method == 'POST':
@@ -109,6 +112,7 @@ def add_landlord():
 
 @admin_bp.route('/tenant/invite', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 @admin_required
 def invite_tenant():
     # Only tenants without a portal account
@@ -179,6 +183,7 @@ def invite_tenant():
 
 @admin_bp.route('/user/<int:user_id>/edit', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 @admin_required
 def edit_user(user_id):
     user = User.query.get_or_404(user_id)
@@ -238,6 +243,7 @@ def edit_user(user_id):
 
 @admin_bp.route('/user/<int:user_id>/toggle', methods=['POST'])
 @login_required
+@landlord_required
 @admin_required
 def toggle_user(user_id):
     user = User.query.get_or_404(user_id)
@@ -257,6 +263,7 @@ def toggle_user(user_id):
 
 @admin_bp.route('/user/<int:user_id>/delete', methods=['POST'])
 @login_required
+@landlord_required
 @admin_required
 def delete_user(user_id):
     user = User.query.get_or_404(user_id)

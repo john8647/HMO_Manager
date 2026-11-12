@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}My Account{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+  <h1>My Account</h1>
+  <a href="{{ url_for('portal.index') }}" class="btn btn-secondary">&larr; Home</a>
+</div>
+
+{% if not row %}
+<div class="card" style="max-width:500px;">
+  <p class="text-muted">No active contract found. Contact your landlord.</p>
+</div>
+{% else %}
+
+{# ── Balance summary ── #}
+<div class="card-grid" style="margin-bottom:28px;">
+
+  <div class="card" style="text-align:center;
+    border-top-color:{% if row.total_balance > 0 %}var(--error){% elif row.total_balance < 0 %}var(--green-primary){% else %}var(--green-primary){% endif %};">
+    <div class="card-title">Total Balance</div>
+    <div class="card-value" style="color:{% if row.total_balance > 0 %}var(--error){% else %}var(--green-dark){% endif %};">
+      {% if row.total_balance < 0 %}CR {% endif %}£{{ "%.2f"|format(row.total_balance|abs) }}
+    </div>
+    <div class="card-sub">
+      <span class="badge
+        {% if row.status == 'credit' %}badge-green
+        {% elif row.status == 'overdue' %}badge-red
+        {% elif row.status == 'outstanding' %}badge-yellow
+        {% else %}badge-green{% endif %}">
+        {{ row.status|title }}
+      </span>
+    </div>
+  </div>
+
+  <div class="card" style="text-align:center;">
+    <div class="card-title">Rent Balance</div>
+    <div class="card-value" style="color:{% if row.rent_balance > 0 %}var(--error){% else %}var(--green-dark){% endif %};">
+      {% if row.rent_balance < 0 %}CR {% endif %}£{{ "%.2f"|format(row.rent_balance|abs) }}
+    </div>
+    <div class="card-sub">Rent &amp; advances</div>
+  </div>
+
+  <div class="card" style="text-align:center;">
+    <div class="card-title">Bills Balance</div>
+    <div class="card-value" style="color:{% if row.bill_balance > 0 %}var(--error){% else %}var(--green-dark){% endif %};">
+      {% if row.bill_balance < 0 %}CR {% endif %}£{{ "%.2f"|format(row.bill_balance|abs) }}
+    </div>
+    <div class="card-sub">Shared bills</div>
+  </div>
+
+  <div class="card" style="text-align:center;">
+    <div class="card-title">Monthly Rent</div>
+    <div class="card-value" style="font-size:20px;">£{{ "%.2f"|format(row.monthly_rent) }}</div>
+    <div class="card-sub">
+      Due {{ row.next_rent_due.strftime('%d %b %Y') if row.next_rent_due else '—' }}
+    </div>
+  </div>
+
+</div>
+
+{# ── Property & room ── #}
+<div class="card" style="max-width:860px; margin-bottom:24px; font-size:14px;">
+  <div class="card-title">Tenancy</div>
+  <table style="margin:0;">
+    <tr>
+      <td style="color:var(--text-secondary); width:150px; padding:5px 0; border:none;">Property</td>
+      <td style="padding:5px 0; border:none;">{{ row.property.address_line1 }}</td>
+    </tr>
+    <tr>
+      <td style="color:var(--text-secondary); padding:5px 0; border:none;">Room</td>
+      <td style="padding:5px 0; border:none;">{{ row.room.room_name }}</td>
+    </tr>
+    <tr>
+      <td style="color:var(--text-secondary); padding:5px 0; border:none;">Contract Start</td>
+      <td style="padding:5px 0; border:none;">{{ row.contract.start_date.strftime('%d %b %Y') }}</td>
+    </tr>
+    <tr>
+      <td style="color:var(--text-secondary); padding:5px 0; border:none;">Contract End</td>
+      <td style="padding:5px 0; border:none;">
+        {{ row.contract.end_date.strftime('%d %b %Y') if row.contract.end_date else '—' }}
+      </td>
+    </tr>
+  </table>
+</div>
+
+{# ── Transaction history ── #}
+<h2>Transaction History</h2>
+{% if row.transactions %}
+<table style="max-width:860px;">
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th style="text-align:right;">Charge</th>
+      <th style="text-align:right;">Payment</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for tx in row.transactions %}
+    <tr>
+      <td>{{ tx.transaction_date.strftime('%d %b %Y') }}</td>
+      <td>{{ tx.type or '—' }}</td>
+      <td style="color:var(--text-secondary);">{{ tx.bank_ref or tx.notes or '—' }}</td>
+      <td style="text-align:right; color:{% if tx.credit_debit == 'db' %}var(--error){% else %}var(--grey-dark){% endif %};">
+        {% if tx.credit_debit == 'db' %}£{{ "%.2f"|format(tx.amount) }}{% else %}—{% endif %}
+      </td>
+      <td style="text-align:right; color:var(--green-dark); font-weight:{% if tx.credit_debit == 'cr' %}700{% else %}400{% endif %};">
+        {% if tx.credit_debit == 'cr' %}£{{ "%.2f"|format(tx.amount) }}{% else %}—{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="text-muted" style="font-size:13px; margin-top:12px;">
+  Showing last 20 transactions. Contact your landlord for older records.
+</p>
+{% else %}
+<p class="text-muted">No transactions on record yet.</p>
+{% endif %}
+
+{% endif %}
+{% endblock %}

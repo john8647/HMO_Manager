@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}My Home{% endblock %}
+
+{% block content %}
+<h1>Welcome, {{ tenant.first_name }}
+  <span style="font-size:14px; font-weight:400; color:var(--grey-dark); margin-left:10px;">
+    {{ today.strftime('%A %d %B %Y') }}
+  </span>
+</h1>
+
+{% if contract %}
+<p class="text-muted" style="margin-bottom:24px;">
+  {{ contract.property.address_line1 }}{% if contract.property.address_line2 %}, {{ contract.property.address_line2 }}{% endif %}
+  &middot; {{ contract.room.room_name }}
+</p>
+{% endif %}
+
+{# ── Summary strip ── #}
+<div class="card-grid" style="margin-bottom:32px;">
+
+  <div class="card" style="text-align:center;
+    border-top-color:{% if total_balance > 0 %}var(--error){% elif total_balance < 0 %}var(--green-primary){% else %}var(--green-primary){% endif %};">
+    <div class="card-title">Balance</div>
+    <div class="card-value" style="color:{% if total_balance > 0 %}var(--error){% else %}var(--green-dark){% endif %};">
+      {% if total_balance < 0 %}CR {% endif %}£{{ "%.2f"|format(total_balance|abs) }}
+    </div>
+    <div class="card-sub">
+      {% if total_balance > 0 %}Amount owed{% elif total_balance < 0 %}In credit{% else %}Up to date{% endif %}
+    </div>
+  </div>
+
+  <div class="card" style="text-align:center;">
+    <div class="card-title">Rent</div>
+    <div class="card-value">£{{ "%.2f"|format(rent_balance|abs) }}</div>
+    <div class="card-sub">{% if rent_balance > 0 %}Outstanding{% elif rent_balance < 0 %}Credit{% else %}Clear{% endif %}</div>
+  </div>
+
+  <div class="card" style="text-align:center;">
+    <div class="card-title">Bills</div>
+    <div class="card-value">£{{ "%.2f"|format(bill_balance|abs) }}</div>
+    <div class="card-sub">{% if bill_balance > 0 %}Outstanding{% elif bill_balance < 0 %}Credit{% else %}Clear{% endif %}</div>
+  </div>
+
+  {% if contract %}
+  <div class="card" style="text-align:center;">
+    <div class="card-title">Next Rent Due</div>
+    <div class="card-value" style="font-size:20px;">
+      {{ contract.next_rent_due.strftime('%d %b %Y') if contract.next_rent_due else '—' }}
+    </div>
+    <div class="card-sub">£{{ "%.2f"|format(contract.monthly_rent) }} / month</div>
+  </div>
+  {% endif %}
+
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+
+  {# ── My open requests ── #}
+  <div class="card">
+    <div class="card-title">My Open Requests</div>
+    {% if my_tasks %}
+    <table style="margin:8px 0 0; font-size:14px;">
+      {% for task in my_tasks %}
+      <tr>
+        <td style="padding:5px 0; border:none;">{{ task.title }}</td>
+        <td style="padding:5px 0 5px 16px; border:none; white-space:nowrap;">
+          <span class="badge {% if task.status == 'in_progress' %}badge-yellow{% else %}badge-grey{% endif %}">
+            {{ task.status|replace('_',' ')|title }}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    <div style="margin-top:12px;">
+      <a href="{{ url_for('portal.tasks') }}" class="btn btn-secondary btn-sm">View all</a>
+    </div>
+    {% else %}
+    <p class="text-muted" style="font-size:14px; margin-top:8px;">No open requests.</p>
+    <a href="{{ url_for('portal.add_task') }}" class="btn btn-primary btn-sm" style="margin-top:4px;">
+      + Raise a request
+    </a>
+    {% endif %}
+  </div>
+
+  {# ── Property notices ── #}
+  <div class="card">
+    <div class="card-title">Property Notices</div>
+    {% if public_tasks %}
+    <table style="margin:8px 0 0; font-size:14px;">
+      {% for task in public_tasks %}
+      <tr>
+        <td style="padding:5px 0; border:none;">
+          {{ task.title }}
+          {% if task.due_date %}
+          <span style="font-size:12px; color:var(--grey-dark);">
+            — {{ task.due_date.strftime('%d %b') }}
+          </span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p class="text-muted" style="font-size:14px; margin-top:8px;">No notices from your landlord.</p>
+    {% endif %}
+  </div>
+
+</div>
+
+{# ── Recent payments ── #}
+{% if recent_payments %}
+<div class="card" style="margin-top:24px;">
+  <div class="card-title">Recent Payments</div>
+  <table style="font-size:14px;">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tx in recent_payments %}
+      <tr>
+        <td>{{ tx.transaction_date.strftime('%d %b %Y') }}</td>
+        <td>{{ tx.type or '—' }}</td>
+        <td style="color:var(--green-dark); font-weight:700;">£{{ "%.2f"|format(tx.amount) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div style="margin-top:12px;">
+    <a href="{{ url_for('portal.rent_roll') }}" class="btn btn-secondary btn-sm">Full account →</a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

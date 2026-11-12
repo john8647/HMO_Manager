@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}My Details{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+  <h1>My Details</h1>
+  <a href="{{ url_for('portal.index') }}" class="btn btn-secondary">&larr; Home</a>
+</div>
+
+<p class="text-muted" style="margin-bottom:24px;">
+  Your personal details as held by your landlord.
+  To update any information please contact your landlord directly.
+</p>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; max-width:860px;">
+
+  <div class="card">
+    <div class="card-title">Personal Information</div>
+    <table style="margin:0;">
+      <tr>
+        <td style="color:var(--text-secondary); width:160px; padding:6px 0; border:none;">Full Name</td>
+        <td style="padding:6px 0; border:none;">{{ tenant.full_name }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--text-secondary); padding:6px 0; border:none;">Email</td>
+        <td style="padding:6px 0; border:none;">{{ tenant.email or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--text-secondary); padding:6px 0; border:none;">Phone</td>
+        <td style="padding:6px 0; border:none;">{{ tenant.phone or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--text-secondary); padding:6px 0; border:none;">Date of Birth</td>
+        <td style="padding:6px 0; border:none;">
+          {{ tenant.date_of_birth.strftime('%d %b %Y') if tenant.date_of_birth else '—' }}
+        </td>
+      </tr>
+      <tr>
+        <td style="color:var(--text-secondary); padding:6px 0; border:none;">Nationality</td>
+        <td style="padding:6px 0; border:none;">{{ tenant.nationality or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--text-secondary); padding:6px 0; border:none;">Home Address</td>
+        <td style="padding:6px 0; border:none;">{{ tenant.home_address or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--text-secondary); padding:6px 0; border:none;">Home Country</td>
+        <td style="padding:6px 0; border:none;">{{ tenant.home_country or '—' }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Student &amp; Compliance</div>
+    <table style="margin:0;">
+      <tr>
+        <td style="color:var(--text-secondary); width:160px; padding:6px 0; border:none;">Status</td>
+        <td style="padding:6px 0; border:none;">{{ tenant.student_status or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--text-secondary); padding:6px 0; border:none;">Student ID</td>
+        <td style="padding:6px 0; border:none;">{{ tenant.student_id or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--text-secondary); padding:6px 0; border:none;">University</td>
+        <td style="padding:6px 0; border:none;">{{ tenant.university or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--text-secondary); padding:6px 0; border:none;">Course</td>
+        <td style="padding:6px 0; border:none;">{{ tenant.course_title or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="color:var(--text-secondary); padding:6px 0; border:none;">Right to Rent</td>
+        <td style="padding:6px 0; border:none;">{{ tenant.right_to_rent_ref or '—' }}</td>
+      </tr>
+    </table>
+  </div>
+
+</div>
+
+<div class="card" style="margin-top:20px; max-width:860px;">
+  <div class="card-title">Data &amp; Privacy</div>
+  <p style="font-size:14px; margin:8px 0;">
+    {% if tenant.gdpr_consent %}
+      &#10003; GDPR consent recorded
+      {% if tenant.gdpr_consent_date %}on {{ tenant.gdpr_consent_date.strftime('%d %b %Y') }}{% endif %}.
+      Your data is held under contractual necessity (tenancy agreement) in line with UK GDPR.
+    {% else %}
+      &#9888; No GDPR consent on record. Please contact your landlord.
+    {% endif %}
+  </p>
+  <p style="font-size:13px; color:var(--text-secondary); margin:4px 0 0;">
+    To request a copy of your data or to correct any information, contact your landlord directly.
+  </p>
+</div>
+
+<div style="margin-top:20px;">
+  <a href="{{ url_for('auth.change_password') }}" class="btn btn-secondary">
+    Change My Password
+  </a>
+</div>
+
+{% endblock %}

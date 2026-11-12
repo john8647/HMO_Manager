@@ -1,6 +1,7 @@
 from flask import (Blueprint, render_template, redirect, url_for,
                    flash, request, send_from_directory, Response)
 from flask_login import login_required, current_user
+from app.utils import landlord_required
 from datetime import datetime, date
 from decimal import Decimal
 import os
@@ -134,6 +135,7 @@ def get_deposit_or_404(deposit_id):
 
 @deposits_bp.route('/')
 @login_required
+@landlord_required
 def index():
     if current_user.role == 'admin':
         deposits = Deposit.query.order_by(Deposit.date_received.desc()).all()
@@ -162,6 +164,7 @@ def index():
 
 @deposits_bp.route('/add', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def add():
     if current_user.role == 'admin':
         tenants = Tenant.query.order_by(Tenant.last_name).all()
@@ -303,6 +306,7 @@ def add():
 
 @deposits_bp.route('/<int:deposit_id>')
 @login_required
+@landlord_required
 def view(deposit_id):
     deposit = get_deposit_or_404(deposit_id)
     return render_template('deposits/view.html',
@@ -315,6 +319,7 @@ def view(deposit_id):
 
 @deposits_bp.route('/<int:deposit_id>/edit', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def edit(deposit_id):
     deposit = get_deposit_or_404(deposit_id)
 
@@ -421,6 +426,7 @@ def edit(deposit_id):
 
 @deposits_bp.route('/<int:deposit_id>/certificate')
 @login_required
+@landlord_required
 def certificate(deposit_id):
     deposit = get_deposit_or_404(deposit_id)
 
@@ -446,6 +452,7 @@ def certificate(deposit_id):
 
 @deposits_bp.route('/<int:deposit_id>/download')
 @login_required
+@landlord_required
 def download(deposit_id):
     deposit = get_deposit_or_404(deposit_id)
     import re
@@ -465,6 +472,7 @@ def download(deposit_id):
 
 @deposits_bp.route('/contracts/<int:tenant_id>')
 @login_required
+@landlord_required
 def contracts_for_tenant(tenant_id):
     from flask import jsonify
     contracts = TenantContract.query.filter_by(
@@ -482,6 +490,7 @@ def contracts_for_tenant(tenant_id):
 
 @deposits_bp.route('/<int:deposit_id>/delete', methods=['POST'])
 @login_required
+@landlord_required
 def delete(deposit_id):
     deposit = get_deposit_or_404(deposit_id)
     db.session.delete(deposit)

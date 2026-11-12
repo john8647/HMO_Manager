@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}My Requests{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+  <h1>My Requests</h1>
+  <a href="{{ url_for('portal.add_task') }}" class="btn btn-primary">+ New Request</a>
+</div>
+
+{# ── Tenant's own tasks ── #}
+<h2>My Submitted Requests</h2>
+{% if my_tasks %}
+<div style="display:flex; flex-direction:column; gap:10px; margin-bottom:32px;">
+  {% for task in my_tasks %}
+  <div class="card" style="
+    padding:14px 18px;
+    border-top-color:
+      {% if task.status == 'complete' %}var(--green-primary)
+      {% elif task.status == 'cancelled' %}var(--grey-mid)
+      {% elif task.priority in ('urgent','high') %}var(--error)
+      {% else %}#f47738{% endif %};">
+
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+      <div style="flex:1; min-width:200px;">
+        <div style="font-size:16px; font-weight:700; margin-bottom:6px;">{{ task.title }}</div>
+
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+          {# Category label #}
+          {% for val, label, _ in categories %}
+            {% if val == task.category %}
+            <span class="badge badge-grey">{{ label }}</span>
+            {% endif %}
+          {% endfor %}
+          {# Priority #}
+          <span class="badge {% if task.priority in ('urgent','high') %}badge-red{% elif task.priority == 'medium' %}badge-yellow{% else %}badge-grey{% endif %}">
+            {{ task.priority|title if task.priority else '—' }}
+          </span>
+          {# Status #}
+          <span class="badge
+            {% if task.status == 'complete' %}badge-green
+            {% elif task.status == 'in_progress' %}badge-yellow
+            {% elif task.status == 'cancelled' %}badge-grey
+            {% else %}badge-grey{% endif %}">
+            {{ task.status|replace('_',' ')|title }}
+          </span>
+        </div>
+
+        {% if task.description %}
+        <p style="font-size:14px; color:var(--text-secondary); margin:0 0 6px;">
+          {{ task.description }}
+        </p>
+        {% endif %}
+
+        <div style="font-size:13px; color:var(--text-secondary); display:flex; gap:12px; flex-wrap:wrap;">
+          <span>Raised {{ task.created_at.strftime('%d %b %Y') }}</span>
+          {% if task.due_date %}
+          <span>&#128197; {{ task.due_date.strftime('%d %b %Y') }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-muted" style="margin-bottom:24px;">
+  You have not submitted any requests yet.
+  <a href="{{ url_for('portal.add_task') }}">Raise one now.</a>
+</p>
+{% endif %}
+
+{# ── Property public tasks ── #}
+{% if property_tasks %}
+<h2>Property Notices</h2>
+<p class="text-muted" style="font-size:14px; margin-bottom:16px;">
+  Tasks and notices shared by your landlord for your property.
+</p>
+<div style="display:flex; flex-direction:column; gap:10px;">
+  {% for task in property_tasks %}
+  <div class="card" style="padding:14px 18px; border-top-color:var(--green-primary);">
+    <div style="font-size:15px; font-weight:700; margin-bottom:6px;">{{ task.title }}</div>
+
+    <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+      <span class="badge
+        {% if task.status == 'complete' %}badge-green
+        {% elif task.status == 'in_progress' %}badge-yellow
+        {% else %}badge-grey{% endif %}">
+        {{ task.status|replace('_',' ')|title }}
+      </span>
+      {% if task.due_date %}
+      <span class="badge badge-grey">Due {{ task.due_date.strftime('%d %b %Y') }}</span>
+      {% endif %}
+    </div>
+
+    {% if task.description %}
+    <p style="font-size:14px; color:var(--text-secondary); margin:0;">
+      {{ task.description }}
+    </p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

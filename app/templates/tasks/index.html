@@ -62,14 +62,24 @@
 
     <!-- Category filter -->
     <select onchange="applyFilter('category', this.value)"
-            style="font-size:13px; padding:4px 8px; max-width:180px;">
+            style="font-size:13px; padding:4px 8px; max-width:200px;">
         <option value="">All categories</option>
-        {% for val, label, _ in categories %}
+        <optgroup label="Landlord">
+        {% for val, label, _ in categories[:6] %}
         <option value="{{ val }}"
             {% if category_filter == val %}selected{% endif %}>
             {{ label }}
         </option>
         {% endfor %}
+        </optgroup>
+        <optgroup label="Tenant / Shared">
+        {% for val, label, _ in categories[6:] %}
+        <option value="{{ val }}"
+            {% if category_filter == val %}selected{% endif %}>
+            {{ label }}
+        </option>
+        {% endfor %}
+        </optgroup>
     </select>
 
     <!-- Priority filter -->
@@ -156,6 +166,12 @@
                         <span class="badge badge-green">Complete</span>
                     {% elif task.status == 'cancelled' %}
                         <span class="badge badge-grey">Cancelled</span>
+                    {% endif %}
+                    <!-- Visibility -->
+                    {% if task.is_public %}
+                        <span class="badge badge-green" title="Visible to tenants">&#127758; Public</span>
+                    {% else %}
+                        <span class="badge badge-grey" title="Landlord only">&#128274; Private</span>
                     {% endif %}
                 </div>
 

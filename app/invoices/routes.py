@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, Response
 from flask_login import login_required, current_user
+from app.utils import landlord_required
 from datetime import datetime, date
 from decimal import Decimal
 from app import db
@@ -110,6 +111,7 @@ def revert_tenant_balances_on_delete(invoice):
 
 @invoices_bp.route('/')
 @login_required
+@landlord_required
 def index():
     if current_user.role == 'admin':
         invoices = Invoice.query.order_by(Invoice.issue_date.desc()).limit(100).all()
@@ -127,6 +129,7 @@ def index():
 
 @invoices_bp.route('/generate', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def generate():
     if current_user.role == 'admin':
         properties = Property.query.order_by(Property.address_line1).all()
@@ -297,6 +300,7 @@ def generate():
 
 @invoices_bp.route('/<int:invoice_id>')
 @login_required
+@landlord_required
 def view(invoice_id):
     invoice     = get_invoice_or_404(invoice_id)
     items       = invoice.items.all()
@@ -316,6 +320,7 @@ def view(invoice_id):
 
 @invoices_bp.route('/<int:invoice_id>/status', methods=['POST'])
 @login_required
+@landlord_required
 def update_status(invoice_id):
     invoice    = get_invoice_or_404(invoice_id)
     new_status = request.form.get('status', '').strip()
@@ -342,6 +347,7 @@ def update_status(invoice_id):
 
 @invoices_bp.route('/<int:invoice_id>/add-item', methods=['POST'])
 @login_required
+@landlord_required
 def add_item(invoice_id):
     invoice     = get_invoice_or_404(invoice_id)
     description = request.form.get('description', '').strip()
@@ -388,6 +394,7 @@ def add_item(invoice_id):
 
 @invoices_bp.route('/<int:invoice_id>/delete', methods=['POST'])
 @login_required
+@landlord_required
 def delete(invoice_id):
     invoice = get_invoice_or_404(invoice_id)
     revert_tenant_balances_on_delete(invoice)
@@ -404,6 +411,7 @@ def delete(invoice_id):
 
 @invoices_bp.route('/<int:invoice_id>/pdf')
 @login_required
+@landlord_required
 def pdf(invoice_id):
     invoice  = get_invoice_or_404(invoice_id)
     items    = invoice.items.all()
@@ -431,6 +439,7 @@ def pdf(invoice_id):
 
 @invoices_bp.route('/rent-roll')
 @login_required
+@landlord_required
 def rent_roll():
     from app.invoices.rent_roll import build_rent_roll
     from app.models import Property as Prop
@@ -467,6 +476,7 @@ def rent_roll():
 
 @invoices_bp.route('/rent-roll/run-charges', methods=['POST'])
 @login_required
+@landlord_required
 def run_rent_charges():
     from app.invoices.rent_engine import generate_rent_charges
     charges = generate_rent_charges(user_id=current_user.id)
@@ -479,6 +489,7 @@ def run_rent_charges():
 
 @invoices_bp.route('/rent-roll/preview-charges')
 @login_required
+@landlord_required
 def preview_rent_charges():
     from app.invoices.rent_engine import generate_rent_charges
     charges = generate_rent_charges(user_id=current_user.id, dry_run=True)
@@ -487,6 +498,7 @@ def preview_rent_charges():
 
 @invoices_bp.route('/rent-roll/recalculate', methods=['POST'])
 @login_required
+@landlord_required
 def recalculate_balances():
     from app.invoices.rent_engine import recalculate_tenant_balance
     from app.models import Tenant as T

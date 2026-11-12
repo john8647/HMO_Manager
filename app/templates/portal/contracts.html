@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}My Contracts{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+  <h1>My Contracts</h1>
+  <a href="{{ url_for('portal.index') }}" class="btn btn-secondary">&larr; Home</a>
+</div>
+
+{% if contracts %}
+{% for contract in contracts %}
+<div class="card" style="margin-bottom:20px; max-width:860px;
+  border-top:4px solid {% if contract.is_active %}var(--green-primary){% else %}var(--grey-mid){% endif %};">
+
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+    <div>
+      <div style="font-size:17px; font-weight:700;">
+        {{ contract.property.address_line1 }}{% if contract.property.address_line2 %}, {{ contract.property.address_line2 }}{% endif %}
+      </div>
+      <div style="font-size:14px; color:var(--text-secondary); margin-top:2px;">
+        {{ contract.room.room_name }}
+      </div>
+    </div>
+    {% if contract.is_active %}
+    <span class="badge badge-green">Active</span>
+    {% else %}
+    <span class="badge badge-grey">Ended</span>
+    {% endif %}
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:16px; margin-bottom:16px;">
+    <div>
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--grey-dark);">Start Date</div>
+      <div style="font-size:15px; margin-top:3px;">{{ contract.start_date.strftime('%d %b %Y') }}</div>
+    </div>
+    <div>
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--grey-dark);">Renewal Date</div>
+      <div style="font-size:15px; margin-top:3px;">
+        {{ contract.renewal_date.strftime('%d %b %Y') if contract.renewal_date else '—' }}
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--grey-dark);">End Date</div>
+      <div style="font-size:15px; margin-top:3px;">
+        {{ contract.end_date.strftime('%d %b %Y') if contract.end_date else '—' }}
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--grey-dark);">Monthly Rent</div>
+      <div style="font-size:15px; margin-top:3px; font-weight:700; color:var(--green-dark);">
+        £{{ "%.2f"|format(contract.monthly_rent) }}
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--grey-dark);">Next Rent Due</div>
+      <div style="font-size:15px; margin-top:3px;">
+        {{ contract.next_rent_due.strftime('%d %b %Y') if contract.next_rent_due else '—' }}
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    {% if contract.contract_file_path %}
+    <a href="{{ url_for('tenants.download_contract', tenant_id=contract.tenant_id, contract_id=contract.id) }}"
+       target="_blank" class="btn btn-secondary btn-sm">
+      &#128196; View Contract Document
+    </a>
+    {% endif %}
+    {% if contract.is_active %}
+    <a href="{{ url_for('portal.extend_contract', contract_id=contract.id) }}"
+       class="btn btn-primary btn-sm">
+      Request Extension
+    </a>
+    {% endif %}
+  </div>
+
+</div>
+{% endfor %}
+
+{% else %}
+<div class="card" style="max-width:500px;">
+  <p class="text-muted">No contracts on record. Contact your landlord.</p>
+</div>
+{% endif %}
+
+{% endblock %}

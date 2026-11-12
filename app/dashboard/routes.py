@@ -1,9 +1,10 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, redirect, url_for
 from flask_login import login_required, current_user
 from datetime import date, timedelta
 from decimal import Decimal
 from app.models import Property, Room, Tenant, TenantContract, Transaction, \
     ComplianceDocument, Task, Invoice
+from app.utils import landlord_required
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -26,6 +27,7 @@ def _outstanding(tenant_id, type_):
 @dashboard_bp.route('/')
 @dashboard_bp.route('/dashboard')
 @login_required
+@landlord_required
 def index():
     today = date.today()
     lookahead = today + timedelta(days=LOOKAHEAD_DAYS)

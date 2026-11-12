@@ -1,10 +1,70 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, \
+    send_from_directory, abort
 from flask_login import login_required, current_user
+from app.utils import landlord_required
 from datetime import date, datetime
+import os
+from werkzeug.utils import secure_filename
 from app import db
-from app.models import Tenant, TenantContract, Property, Room
+from app.models import Tenant, TenantContract, Property, Room, Task
+
+CONTRACT_UPLOAD_FOLDER = 'app/static/uploads/contracts'
+CONTRACT_ALLOWED_EXT   = {'pdf', 'jpg', 'jpeg', 'png'}
 
 tenants_bp = Blueprint('tenants', __name__)
+
+
+def _save_contract_file(file_obj, tenant_id):
+    """Save an uploaded contract file; return stored filename or None."""
+    if not file_obj or not file_obj.filename:
+        return None
+    ext = file_obj.filename.rsplit('.', 1)[-1].lower()
+    if ext not in CONTRACT_ALLOWED_EXT:
+        return None
+    os.makedirs(CONTRACT_UPLOAD_FOLDER, exist_ok=True)
+    filename = secure_filename(
+        f'contract_tenant{tenant_id}_{datetime.utcnow().strftime("%Y%m%d%H%M%S")}.{ext}'
+    )
+    file_obj.save(os.path.join(CONTRACT_UPLOAD_FOLDER, filename))
+    return filename
+
+
+def _ensure_contract_tasks(contract, tenant, user_id):
+    """
+    Create (or update) Tasks for renewal and end dates on the contract.
+    Idempotent — skips if a task with the same title already exists.
+    """
+    for attr, label in [('renewal_date', 'Contract Renewal'),
+                         ('end_date',     'Contract End')]:
+        due = getattr(contract, attr)
+        if not due:
+            continue
+        title = f'{label} — {tenant.full_name}'
+        existing = Task.query.filter_by(
+            user_id=user_id,
+            tenant_id=tenant.id,
+            title=title,
+        ).filter(Task.status.in_(['open', 'in_progress'])).first()
+        if existing:
+            existing.due_date = due          # update if date changed
+        else:
+            task = Task(
+                user_id=user_id,
+                tenant_id=tenant.id,
+                property_id=contract.property_id,
+                room_id=contract.room_id,
+                title=title,
+                description=(
+                    f'Contract for {tenant.full_name} at '
+                    f'{contract.property.address_line1}, '
+                    f'{contract.room.room_name}. '
+                    f'{label} date: {due.strftime("%d %b %Y")}.'
+                ),
+                priority='high',
+                status='open',
+                due_date=due,
+            )
+            db.session.add(task)
 
 
 def get_tenant_or_404(tenant_id):
@@ -17,6 +77,7 @@ def get_tenant_or_404(tenant_id):
 
 @tenants_bp.route('/')
 @login_required
+@landlord_required
 def index():
     show = request.args.get('show', 'active')
     if current_user.role == 'admin':
@@ -40,6 +101,7 @@ def index():
 
 @tenants_bp.route('/add', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def add():
     properties = Property.query.filter_by(user_id=current_user.id).all()
 
@@ -114,6 +176,7 @@ def add():
 
 @tenants_bp.route('/<int:tenant_id>')
 @login_required
+@landlord_required
 def view(tenant_id):
     tenant = get_tenant_or_404(tenant_id)
     contracts = TenantContract.query.filter_by(
@@ -129,6 +192,7 @@ def view(tenant_id):
 
 @tenants_bp.route('/<int:tenant_id>/edit', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def edit(tenant_id):
     tenant = get_tenant_or_404(tenant_id)
 
@@ -176,6 +240,7 @@ def edit(tenant_id):
 
 @tenants_bp.route('/<int:tenant_id>/deactivate', methods=['POST'])
 @login_required
+@landlord_required
 def deactivate(tenant_id):
     tenant = get_tenant_or_404(tenant_id)
     tenant.is_active = False
@@ -195,6 +260,7 @@ def deactivate(tenant_id):
 
 @tenants_bp.route('/<int:tenant_id>/reactivate', methods=['POST'])
 @login_required
+@landlord_required
 def reactivate(tenant_id):
     tenant = get_tenant_or_404(tenant_id)
     tenant.is_active = True
@@ -208,6 +274,7 @@ def reactivate(tenant_id):
 
 @tenants_bp.route('/<int:tenant_id>/contracts/add', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def add_contract(tenant_id):
     tenant = get_tenant_or_404(tenant_id)
     properties = Property.query.filter_by(user_id=current_user.id).all()
@@ -221,13 +288,14 @@ def add_contract(tenant_id):
         ).all()
 
     if request.method == 'POST':
-        property_id   = request.form.get('property_id')
-        room_id       = request.form.get('room_id')
+        property_id    = request.form.get('property_id')
+        room_id        = request.form.get('room_id')
         start_date_str = request.form.get('start_date', '').strip()
         end_date_str   = request.form.get('end_date', '').strip()
         renewal_str    = request.form.get('renewal_date', '').strip()
         monthly_rent   = request.form.get('monthly_rent', '').strip()
         advanced_rent  = request.form.get('advanced_rent_agreed', '0').strip()
+        uploaded_file  = request.files.get('contract_file')
 
         errors = []
         if not property_id:
@@ -263,6 +331,8 @@ def add_contract(tenant_id):
             if old_room:
                 old_room.is_occupied = False
 
+        file_path = _save_contract_file(uploaded_file, tenant.id)
+
         contract = TenantContract(
             tenant_id=tenant.id,
             property_id=int(property_id),
@@ -277,6 +347,7 @@ def add_contract(tenant_id):
             advanced_rent_agreed=advanced_rent_val,
             remaining_advance_rent=advanced_rent_val,
             is_active=True,
+            contract_file_path=file_path,
         )
         db.session.add(contract)
 
@@ -285,6 +356,8 @@ def add_contract(tenant_id):
         if room:
             room.is_occupied = True
 
+        db.session.flush()   # get contract.id before creating tasks
+        _ensure_contract_tasks(contract, tenant, current_user.id)
         db.session.commit()
 
         messages = []
@@ -359,6 +432,7 @@ def add_contract(tenant_id):
 
 @tenants_bp.route('/<int:tenant_id>/contracts/<int:contract_id>/end', methods=['POST'])
 @login_required
+@landlord_required
 def end_contract(tenant_id, contract_id):
     tenant = get_tenant_or_404(tenant_id)
     contract = TenantContract.query.filter_by(
@@ -381,3 +455,70 @@ def end_contract(tenant_id, contract_id):
     db.session.commit()
     flash('Contract ended and room marked as vacant.', 'success')
     return redirect(url_for('tenants.view', tenant_id=tenant.id))
+
+
+@tenants_bp.route('/<int:tenant_id>/contracts/<int:contract_id>/edit',
+                  methods=['GET', 'POST'])
+@login_required
+@landlord_required
+def edit_contract(tenant_id, contract_id):
+    tenant   = get_tenant_or_404(tenant_id)
+    contract = TenantContract.query.filter_by(
+        id=contract_id, tenant_id=tenant.id
+    ).first_or_404()
+
+    if request.method == 'POST':
+        renewal_str   = request.form.get('renewal_date', '').strip()
+        end_date_str  = request.form.get('end_date', '').strip()
+        uploaded_file = request.files.get('contract_file')
+
+        try:
+            contract.renewal_date = (
+                datetime.strptime(renewal_str, '%Y-%m-%d').date()
+                if renewal_str else None
+            )
+            contract.end_date = (
+                datetime.strptime(end_date_str, '%Y-%m-%d').date()
+                if end_date_str else None
+            )
+        except ValueError:
+            flash('Invalid date format.', 'error')
+            return render_template('tenants/edit_contract.html',
+                                   tenant=tenant, contract=contract)
+
+        # Replace document if a new one was uploaded
+        new_file = _save_contract_file(uploaded_file, tenant.id)
+        if new_file:
+            # Remove old file if it exists
+            if contract.contract_file_path:
+                old = os.path.join(CONTRACT_UPLOAD_FOLDER,
+                                   contract.contract_file_path)
+                if os.path.exists(old):
+                    os.remove(old)
+            contract.contract_file_path = new_file
+
+        # Sync / create tasks for the new dates
+        _ensure_contract_tasks(contract, tenant, current_user.id)
+        db.session.commit()
+        flash('Contract updated.', 'success')
+        return redirect(url_for('tenants.view', tenant_id=tenant.id))
+
+    return render_template('tenants/edit_contract.html',
+                           tenant=tenant, contract=contract)
+
+
+@tenants_bp.route('/<int:tenant_id>/contracts/<int:contract_id>/download')
+@login_required
+@landlord_required
+def download_contract(tenant_id, contract_id):
+    tenant   = get_tenant_or_404(tenant_id)
+    contract = TenantContract.query.filter_by(
+        id=contract_id, tenant_id=tenant.id
+    ).first_or_404()
+    if not contract.contract_file_path:
+        abort(404)
+    return send_from_directory(
+        os.path.abspath(CONTRACT_UPLOAD_FOLDER),
+        contract.contract_file_path,
+        as_attachment=False,
+    )

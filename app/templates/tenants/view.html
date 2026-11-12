@@ -93,12 +93,13 @@
 <table>
     <thead>
         <tr>
-            <th>Property</th>
-            <th>Room</th>
-            <th>Start Date</th>
-            <th>End Date</th>
-            <th>Rent/month</th>
+            <th>Property / Room</th>
+            <th>Start</th>
+            <th>Renewal</th>
+            <th>End</th>
+            <th>Rent/mo</th>
             <th>Next Due</th>
+            <th>Doc</th>
             <th>Status</th>
             <th>Actions</th>
         </tr>
@@ -106,12 +107,27 @@
     <tbody>
         {% for contract in contracts %}
         <tr>
-            <td>{{ contract.property.address_line1 }}</td>
-            <td>{{ contract.room.room_name }}</td>
+            <td>
+                <strong>{{ contract.property.address_line1 }}</strong><br>
+                <span style="font-size:13px; color:var(--text-secondary);">{{ contract.room.room_name }}</span>
+            </td>
             <td>{{ contract.start_date.strftime('%d %b %Y') }}</td>
+            <td>
+                {{ contract.renewal_date.strftime('%d %b %Y') if contract.renewal_date else '—' }}
+            </td>
             <td>{{ contract.end_date.strftime('%d %b %Y') if contract.end_date else '—' }}</td>
             <td>£{{ '%.2f'|format(contract.monthly_rent) }}</td>
             <td>{{ contract.next_rent_due.strftime('%d %b %Y') if contract.next_rent_due else '—' }}</td>
+            <td>
+                {% if contract.contract_file_path %}
+                <a href="{{ url_for('tenants.download_contract', tenant_id=tenant.id, contract_id=contract.id) }}"
+                   target="_blank" class="btn btn-sm btn-secondary" title="View document">
+                    &#128196; View
+                </a>
+                {% else %}
+                <span style="color:var(--grey-mid); font-size:13px;">None</span>
+                {% endif %}
+            </td>
             <td>
                 {% if contract.is_active %}
                     <span class="badge badge-green">Active</span>
@@ -119,7 +135,9 @@
                     <span class="badge badge-grey">Ended</span>
                 {% endif %}
             </td>
-            <td>
+            <td style="white-space:nowrap;">
+                <a href="{{ url_for('tenants.edit_contract', tenant_id=tenant.id, contract_id=contract.id) }}"
+                   class="btn btn-secondary btn-sm">Edit</a>
                 {% if contract.is_active %}
                 <form method="POST"
                       action="{{ url_for('tenants.end_contract', tenant_id=tenant.id, contract_id=contract.id) }}"

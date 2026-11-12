@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Edit Contract — {{ tenant.full_name }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>Edit Contract</h1>
+    <a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}"
+       class="btn btn-secondary">&larr; Back to {{ tenant.full_name }}</a>
+</div>
+
+<p class="text-muted">
+    {{ contract.property.address_line1 }} &mdash;
+    {{ contract.room.room_name }} &mdash;
+    started {{ contract.start_date.strftime('%d %b %Y') }}
+</p>
+
+<form method="POST"
+      action="{{ url_for('tenants.edit_contract', tenant_id=tenant.id, contract_id=contract.id) }}"
+      enctype="multipart/form-data">
+<div style="max-width: 560px; margin-top: 16px;">
+
+    <div class="form-group">
+        <label for="renewal_date">Renewal Date</label>
+        <input type="date" id="renewal_date" name="renewal_date"
+               value="{{ contract.renewal_date.isoformat() if contract.renewal_date else '' }}">
+        <span class="form-hint">
+            Date the contract is due for renewal review.
+            Saving will create or update a Task with this date.
+        </span>
+    </div>
+
+    <div class="form-group">
+        <label for="end_date">Contract End Date</label>
+        <input type="date" id="end_date" name="end_date"
+               value="{{ contract.end_date.isoformat() if contract.end_date else '' }}">
+        <span class="form-hint">
+            Fixed-term end date. Leave blank for a rolling contract.
+            Saving will create or update a Task with this date.
+        </span>
+    </div>
+
+    <div class="form-group">
+        <label>Contract Document</label>
+        {% if contract.contract_file_path %}
+        <div style="margin-bottom: 10px; padding: 10px 14px;
+                    background: var(--green-light); border-left: 4px solid var(--green-primary);
+                    font-size: 14px;">
+            &#10003; Document on file:
+            <a href="{{ url_for('tenants.download_contract', tenant_id=tenant.id, contract_id=contract.id) }}"
+               target="_blank" style="color: var(--green-dark); font-weight: 600;">
+                View / Download
+            </a>
+        </div>
+        <label for="contract_file" style="font-weight: 400; color: var(--grey-dark);">
+            Replace document (optional):
+        </label>
+        {% else %}
+        <div style="margin-bottom: 8px; padding: 8px 14px;
+                    background: var(--grey-light); border-left: 4px solid var(--grey-mid);
+                    font-size: 14px; color: var(--grey-dark);">
+            No document uploaded yet.
+        </div>
+        {% endif %}
+        <input type="file" id="contract_file" name="contract_file"
+               accept=".pdf,.jpg,.jpeg,.png"
+               style="font-size:15px;">
+        <span class="form-hint">PDF, JPG or PNG. Uploading a new file will replace the existing one.</span>
+    </div>
+
+    <div class="mt-2">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}"
+           class="btn btn-secondary" style="margin-left: 8px;">Cancel</a>
+    </div>
+
+</div>
+</form>
+{% endblock %}

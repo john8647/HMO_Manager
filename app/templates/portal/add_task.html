@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}New Request{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+  <h1>New Request</h1>
+  <a href="{{ url_for('portal.tasks') }}" class="btn btn-secondary">&larr; My Requests</a>
+</div>
+
+<p class="text-muted" style="max-width:580px; margin-bottom:24px;">
+  Submit a request or report to your landlord. They will be notified and
+  will follow up with you directly.
+</p>
+
+<div style="max-width:580px;">
+
+{# Property / room context #}
+<div class="card" style="margin-bottom:20px; font-size:14px;">
+  <div class="card-title">This request is for</div>
+  <div style="margin-top:4px;">
+    <strong>{{ contract.property.address_line1 }}</strong>
+    &mdash; {{ contract.room.room_name if contract.room else 'Whole property' }}
+  </div>
+</div>
+
+<form method="POST">
+
+  <div class="form-group">
+    <label for="title">Title <span style="color:var(--error);">*</span></label>
+    <input type="text" id="title" name="title" required maxlength="200"
+           placeholder="Short description of your request">
+  </div>
+
+  <div class="form-group">
+    <label for="category">Category <span style="color:var(--error);">*</span></label>
+    <select id="category" name="category" required>
+      <option value="">— Select a category —</option>
+      {% for val, label, description in categories %}
+      <option value="{{ val }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+    <span class="form-hint" id="category-hint"></span>
+  </div>
+
+  <div class="form-group">
+    <label for="priority">Priority</label>
+    <select id="priority" name="priority">
+      {% for val, label, _ in priorities %}
+      <option value="{{ val }}" {% if val == 'medium' %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="description">Details</label>
+    <textarea id="description" name="description" rows="5"
+              placeholder="Describe the issue or request in as much detail as possible…"></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="due_date">Preferred / Required By (optional)</label>
+    <input type="date" id="due_date" name="due_date">
+    <span class="form-hint">Leave blank if there is no specific deadline.</span>
+  </div>
+
+  <div class="card" style="margin-bottom:20px; font-size:13px; color:var(--text-secondary);">
+    &#9432; Submitting this form sends your request to your landlord.
+    You will be able to see its status on the My Requests page.
+    Repeat or scheduled tasks cannot be raised through the portal.
+  </div>
+
+  <div style="display:flex; gap:10px;">
+    <button type="submit" class="btn btn-primary">Submit Request</button>
+    <a href="{{ url_for('portal.tasks') }}" class="btn btn-secondary">Cancel</a>
+  </div>
+
+</form>
+</div>
+
+<script>
+// Show category description as a hint when a category is selected
+const hints = {
+  {% for val, label, description in categories %}
+  "{{ val }}": "{{ description }}",
+  {% endfor %}
+};
+
+document.getElementById('category').addEventListener('change', function() {
+  const hint = document.getElementById('category-hint');
+  hint.textContent = hints[this.value] || '';
+});
+</script>
+{% endblock %}

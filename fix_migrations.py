@@ -47,7 +47,9 @@ print(f'Connected to {DB_PATH}')
 
 adds = [
     # (table, column, sql_type_default)
-    ('deposits',     'file_path',          'VARCHAR(300)'),
+    ('deposits',          'file_path',          'VARCHAR(300)'),
+    ('tenant_contracts',  'contract_file_path', 'VARCHAR(300)'),
+    ('tasks',        'category',           'VARCHAR(50)'),
     ('tasks',        'repeat_frequency',   'VARCHAR(50)'),
     ('tasks',        'remind_days_before', 'INTEGER'),
     ('transactions', 'expense_id',         'INTEGER'),
@@ -59,6 +61,9 @@ adds = [
     ('transactions', 'month_year_period',  'VARCHAR(20)'),
     ('transactions', 'notes',              'VARCHAR(500)'),
     ('invoices',     'amount_paid',        'NUMERIC(10,2) DEFAULT 0'),
+    ('tasks',        'repeat',             "VARCHAR(20) DEFAULT 'none'"),
+    ('tasks',        'time_bound',         'BOOLEAN DEFAULT 0'),
+    ('tasks',        'is_public',          'BOOLEAN DEFAULT 0'),
 ]
 
 for table, col, defn in adds:

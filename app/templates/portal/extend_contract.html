@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Request Contract Extension{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+  <h1>Request Contract Extension</h1>
+  <a href="{{ url_for('portal.contracts') }}" class="btn btn-secondary">&larr; My Contracts</a>
+</div>
+
+<p class="text-muted" style="max-width:580px; margin-bottom:24px;">
+  Submit an extension request to your landlord. They will review and confirm
+  the new dates. This does not automatically change your contract.
+</p>
+
+<div style="max-width:540px;">
+<div class="card" style="margin-bottom:20px; font-size:14px;">
+  <div class="card-title">Current Contract</div>
+  <table style="margin:0;">
+    <tr>
+      <td style="color:var(--text-secondary); width:150px; padding:5px 0; border:none;">Property</td>
+      <td style="padding:5px 0; border:none;">{{ contract.property.address_line1 }} &middot; {{ contract.room.room_name }}</td>
+    </tr>
+    <tr>
+      <td style="color:var(--text-secondary); padding:5px 0; border:none;">Current End</td>
+      <td style="padding:5px 0; border:none;">
+        {{ contract.end_date.strftime('%d %b %Y') if contract.end_date else 'No fixed end date' }}
+      </td>
+    </tr>
+    <tr>
+      <td style="color:var(--text-secondary); padding:5px 0; border:none;">Next Rent Due</td>
+      <td style="padding:5px 0; border:none;">
+        {{ contract.next_rent_due.strftime('%d %b %Y') if contract.next_rent_due else '—' }}
+      </td>
+    </tr>
+  </table>
+</div>
+
+<form method="POST">
+  <h2 style="font-size:16px; margin-bottom:16px;">Option 1 — Extend by months</h2>
+
+  <div class="form-group">
+    <label for="extend_months">Extend by (months)</label>
+    <select id="extend_months" name="extend_months">
+      <option value="">— Do not use this option —</option>
+      {% for m in range(1, 13) %}
+      <option value="{{ m }}">{{ m }} month{% if m != 1 %}s{% endif %}</option>
+      {% endfor %}
+    </select>
+    <span class="form-hint">Maximum 12 months.</span>
+  </div>
+
+  <div style="border-top:1px solid var(--border); margin:20px 0; padding-top:20px;">
+    <h2 style="font-size:16px; margin-bottom:16px;">Option 2 — Choose a specific end date</h2>
+
+    <div class="form-group">
+      <label for="end_date">New End Date</label>
+      <input type="date" id="end_date" name="end_date"
+             min="{{ min_end.isoformat() }}">
+      <span class="form-hint">
+        Must be after your next rent due date
+        ({{ contract.next_rent_due.strftime('%d %b %Y') if contract.next_rent_due else 'check with landlord' }}).
+      </span>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px; font-size:13px; color:var(--text-secondary);">
+    &#9432; Submitting this form sends a request task to your landlord.
+    Your contract dates will not change until the landlord confirms.
+  </div>
+
+  <div style="display:flex; gap:10px;">
+    <button type="submit" class="btn btn-primary">Send Extension Request</button>
+    <a href="{{ url_for('portal.contracts') }}" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>
+</div>
+
+<script>
+// Clear the other option when one is used
+document.getElementById('extend_months').addEventListener('change', function() {
+    if (this.value) document.getElementById('end_date').value = '';
+});
+document.getElementById('end_date').addEventListener('change', function() {
+    if (this.value) document.getElementById('extend_months').value = '';
+});
+</script>
+{% endblock %}

@@ -1,6 +1,7 @@
 from flask import (Blueprint, render_template, redirect, url_for,
                    flash, request, Response)
 from flask_login import login_required, current_user
+from app.utils import landlord_required
 from datetime import date
 from app.models import Property, Transaction, Expense
 from app.reports.quickfile import (build_quickfile_csv,
@@ -12,6 +13,7 @@ reports_bp = Blueprint('reports', __name__)
 
 @reports_bp.route('/')
 @login_required
+@landlord_required
 def index():
     if current_user.role == 'admin':
         properties = Property.query.order_by(Property.address_line1).all()
@@ -31,6 +33,7 @@ def index():
 
 @reports_bp.route('/quickfile/export')
 @login_required
+@landlord_required
 def quickfile_export():
     property_id    = request.args.get('property_id')
     tax_year       = request.args.get('tax_year', type=int)

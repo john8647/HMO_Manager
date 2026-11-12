@@ -1,6 +1,7 @@
 from flask import (Blueprint, render_template, redirect, url_for,
                    flash, request, send_from_directory)
 from flask_login import login_required, current_user
+from app.utils import landlord_required
 from datetime import datetime, date
 import os
 from werkzeug.utils import secure_filename
@@ -51,6 +52,7 @@ def days_until(expiry_date):
 
 @compliance_bp.route('/')
 @login_required
+@landlord_required
 def index():
     if current_user.role == 'admin':
         properties = Property.query.order_by(Property.address_line1).all()
@@ -94,6 +96,7 @@ def index():
 
 @compliance_bp.route('/add', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def add():
     if current_user.role == 'admin':
         properties = Property.query.order_by(Property.address_line1).all()
@@ -184,6 +187,7 @@ def add():
 
 @compliance_bp.route('/<int:doc_id>/edit', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def edit(doc_id):
     doc = get_doc_or_404(doc_id)
     if current_user.role == 'admin':
@@ -246,6 +250,7 @@ def edit(doc_id):
 
 @compliance_bp.route('/<int:doc_id>/delete', methods=['POST'])
 @login_required
+@landlord_required
 def delete(doc_id):
     doc = get_doc_or_404(doc_id)
     # Remove file if exists
@@ -263,6 +268,7 @@ def delete(doc_id):
 
 @compliance_bp.route('/<int:doc_id>/download')
 @login_required
+@landlord_required
 def download(doc_id):
     doc = get_doc_or_404(doc_id)
     if not doc.file_path:

@@ -1,6 +1,7 @@
 from flask import (Blueprint, render_template, redirect, url_for,
                    flash, request, Response)
 from flask_login import login_required, current_user
+from app.utils import landlord_required
 from datetime import datetime
 from decimal import Decimal
 from app import db
@@ -15,6 +16,7 @@ transactions_bp = Blueprint('transactions', __name__)
 
 @transactions_bp.route('/')
 @login_required
+@landlord_required
 def index():
     if current_user.role == 'admin':
         transactions = Transaction.query.order_by(
@@ -36,6 +38,7 @@ def index():
 
 @transactions_bp.route('/add', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def add():
     if current_user.role == 'admin':
         tenants = Tenant.query.order_by(Tenant.last_name).all()
@@ -121,6 +124,7 @@ def add():
 
 @transactions_bp.route('/import', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def import_csv():
     if request.method == 'POST':
         uploaded = request.files.get('csv_file')
@@ -186,6 +190,7 @@ def import_csv():
 
 @transactions_bp.route('/match/<int:import_id>', methods=['GET', 'POST'])
 @login_required
+@landlord_required
 def match(import_id):
     bank_import = BankImport.query.filter_by(
         id=import_id, user_id=current_user.id
@@ -370,6 +375,7 @@ def _create_debit_transaction(row, tenant_id, type_, charge_type_id,
 
 @transactions_bp.route('/legend')
 @login_required
+@landlord_required
 def legend():
     legends = TransactionLegend.query.filter_by(
         user_id=current_user.id
@@ -383,6 +389,7 @@ def legend():
 
 @transactions_bp.route('/legend/add', methods=['POST'])
 @login_required
+@landlord_required
 def legend_add():
     pattern      = request.form.get('description_pattern', '').strip().upper()
     tenant_id    = request.form.get('tenant_id') or None
@@ -417,6 +424,7 @@ def legend_add():
 
 @transactions_bp.route('/legend/<int:legend_id>/delete', methods=['POST'])
 @login_required
+@landlord_required
 def legend_delete(legend_id):
     leg = TransactionLegend.query.filter_by(
         id=legend_id, user_id=current_user.id
@@ -429,6 +437,7 @@ def legend_delete(legend_id):
 
 @transactions_bp.route('/imports')
 @login_required
+@landlord_required
 def imports():
     all_imports = BankImport.query.filter_by(
         user_id=current_user.id
