@@ -16,7 +16,12 @@
         </div>
         {% if current_user.is_authenticated %}
         <nav class="header-nav">
+            {% if current_user.role == 'tenant' %}
+            <span class="user-info">&#128100; {{ current_user.username }}</span>
+            {% else %}
             <span class="user-info">{{ current_user.username }} ({{ current_user.role }})</span>
+            {% endif %}
+            <a href="{{ url_for('auth.change_password') }}" class="btn-link" style="margin-right:8px;">Change Password</a>
             <a href="{{ url_for('auth.logout') }}" class="btn-link">Log out</a>
         </nav>
         {% endif %}
@@ -29,6 +34,19 @@
     <aside class="sidebar">
         <nav class="sidebar-nav">
             <ul>
+            {% if current_user.role == 'tenant' %}
+                {# ── Tenant portal nav ── #}
+                <li><a href="{{ url_for('portal.index') }}" class="nav-link">&#9632; My Home</a></li>
+                <li class="nav-section">My Tenancy</li>
+                <li><a href="{{ url_for('portal.profile') }}" class="nav-link">My Details</a></li>
+                <li><a href="{{ url_for('portal.contracts') }}" class="nav-link">My Contracts</a></li>
+                <li class="nav-section">Finance</li>
+                <li><a href="{{ url_for('portal.rent_roll') }}" class="nav-link">My Account</a></li>
+                <li class="nav-section">Requests</li>
+                <li><a href="{{ url_for('portal.tasks') }}" class="nav-link">My Requests</a></li>
+                <li><a href="{{ url_for('portal.add_task') }}" class="nav-link">+ New Request</a></li>
+            {% else %}
+                {# ── Landlord / admin nav ── #}
                 <li><a href="{{ url_for('dashboard.index') }}" class="nav-link">&#9632; Dashboard</a></li>
                 <li class="nav-section">Properties</li>
                 <li><a href="{{ url_for('properties.index') }}" class="nav-link">Properties &amp; Rooms</a></li>
@@ -48,6 +66,7 @@
                 <li class="nav-section">Admin</li>
                 <li><a href="{{ url_for('admin.index') }}" class="nav-link">Admin Panel</a></li>
                 {% endif %}
+            {% endif %}
             </ul>
         </nav>
     </aside>

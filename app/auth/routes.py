@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db
-from app.models import User
+from app.models import User, Tenant, TenantContract
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -27,7 +27,28 @@ def login():
             login_user(user, remember=remember)
             next_page = request.args.get('next')
             flash(f'Welcome back, {user.username}!', 'success')
-            # Tenants go to their portal, everyone else to the dashboard
+
+            # ── Auto-generate outstanding rent charges on login ──────────
+            try:
+                from app.invoices.rent_engine import generate_rent_charges
+                if user.role == 'tenant':
+                    # Run only for this tenant's own contracts
+                    tenant = Tenant.query.filter_by(
+                        portal_user_id=user.id
+                    ).first()
+                    if tenant:
+                        contract = TenantContract.query.filter_by(
+                            tenant_id=tenant.id, is_active=True
+                        ).first()
+                        if contract:
+                            generate_rent_charges(user_id=contract.user_id)
+                else:
+                    # Landlord / admin — run for all their tenants
+                    generate_rent_charges(user_id=user.id)
+            except Exception:
+                pass  # Never block login if the engine errors
+            # ────────────────────────────────────────────────────────────
+
             if user.role == 'tenant':
                 return redirect(next_page or url_for('portal.index'))
             return redirect(next_page or url_for('dashboard.index'))
