@@ -42,6 +42,7 @@
                 <li><a href="{{ url_for('portal.contracts') }}" class="nav-link">My Contracts</a></li>
                 <li class="nav-section">Finance</li>
                 <li><a href="{{ url_for('portal.rent_roll') }}" class="nav-link">My Account</a></li>
+                <li><a href="{{ url_for('portal.invoices') }}" class="nav-link">My Invoices</a></li>
                 <li class="nav-section">Requests</li>
                 <li><a href="{{ url_for('portal.tasks') }}" class="nav-link">My Requests</a></li>
                 <li><a href="{{ url_for('portal.add_task') }}" class="nav-link">+ New Request</a></li>
@@ -92,6 +93,72 @@
     <p>HMO Landlord Management System &mdash; Private use only &mdash;
     Personal data processed under GDPR Article 6(1)(b) contractual necessity</p>
 </footer>
+
+{% if current_user.is_authenticated %}
+<div id="idle-warning" style="
+    display:none; position:fixed; bottom:24px; right:24px; z-index:9999;
+    background:#1a1a2e; color:#fff; padding:16px 20px; border-radius:8px;
+    box-shadow:0 4px 20px rgba(0,0,0,.35); font-size:14px; max-width:300px;">
+  <div style="font-weight:700; margin-bottom:6px;">&#9888; Session expiring</div>
+  <div>You will be logged out in <strong id="idle-countdown">60</strong> seconds
+  due to inactivity.</div>
+  <div style="margin-top:12px; display:flex; gap:8px;">
+    <button onclick="resetIdleTimer()"
+            style="background:var(--green-primary,#2ecc71); border:none; color:#fff;
+                   padding:6px 14px; border-radius:4px; cursor:pointer; font-size:13px;">
+      Stay logged in
+    </button>
+    <a href="{{ url_for('auth.logout') }}"
+       style="background:transparent; border:1px solid #666; color:#ccc;
+              padding:6px 14px; border-radius:4px; cursor:pointer; font-size:13px;
+              text-decoration:none; display:inline-block;">
+      Log out now
+    </a>
+  </div>
+</div>
+
+<script>
+(function () {
+  const IDLE_MINUTES  = 1;          // warn after this many minutes idle
+  const WARN_SECONDS  = 30;         // countdown shown in warning
+  const LOGOUT_URL    = {{ url_for('auth.logout') | tojson }};
+
+  let idleTimer, countdownTimer, secondsLeft;
+  const warning   = document.getElementById('idle-warning');
+  const countdown = document.getElementById('idle-countdown');
+
+  function startCountdown() {
+    secondsLeft = WARN_SECONDS;
+    countdown.textContent = secondsLeft;
+    warning.style.display = 'block';
+    countdownTimer = setInterval(function () {
+      secondsLeft -= 1;
+      countdown.textContent = secondsLeft;
+      if (secondsLeft <= 0) {
+        clearInterval(countdownTimer);
+        window.location.href = LOGOUT_URL;
+      }
+    }, 1000);
+  }
+
+  function resetIdleTimer() {
+    clearTimeout(idleTimer);
+    clearInterval(countdownTimer);
+    warning.style.display = 'none';
+    idleTimer = setTimeout(startCountdown, IDLE_MINUTES * 60 * 1000);
+  }
+
+  // Reset on any user activity
+  ['mousemove', 'mousedown', 'keypress', 'touchstart', 'scroll', 'click']
+    .forEach(function (evt) {
+      document.addEventListener(evt, resetIdleTimer, { passive: true });
+    });
+
+  // Start the timer on page load
+  resetIdleTimer();
+})();
+</script>
+{% endif %}
 
 </body>
 </html>

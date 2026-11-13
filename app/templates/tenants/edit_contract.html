@@ -12,21 +12,27 @@
     {{ contract.property.address_line1 }} &mdash;
     {{ contract.room.room_name }} &mdash;
     started {{ contract.start_date.strftime('%d %b %Y') }}
+    {% if not contract.is_active %}
+    <span class="badge badge-grey" style="margin-left:8px;">Closed</span>
+    {% endif %}
 </p>
 
 <form method="POST"
       action="{{ url_for('tenants.edit_contract', tenant_id=tenant.id, contract_id=contract.id) }}"
-      enctype="multipart/form-data">
-<div style="max-width: 560px; margin-top: 16px;">
+      enctype="multipart/form-data"
+      id="contract-form">
 
+{# Hidden action field — set by whichever button is clicked #}
+<input type="hidden" name="action" id="form-action" value="save">
+
+<div style="max-width:580px; margin-top:16px;">
+
+    {# ── Standard date / document fields ── #}
     <div class="form-group">
         <label for="renewal_date">Renewal Date</label>
         <input type="date" id="renewal_date" name="renewal_date"
                value="{{ contract.renewal_date.isoformat() if contract.renewal_date else '' }}">
-        <span class="form-hint">
-            Date the contract is due for renewal review.
-            Saving will create or update a Task with this date.
-        </span>
+        <span class="form-hint">Date the contract is due for renewal review.</span>
     </div>
 
     <div class="form-group">
@@ -34,45 +40,227 @@
         <input type="date" id="end_date" name="end_date"
                value="{{ contract.end_date.isoformat() if contract.end_date else '' }}">
         <span class="form-hint">
-            Fixed-term end date. Leave blank for a rolling contract.
-            Saving will create or update a Task with this date.
+            Fixed-term end date for the contract. Leave blank for a rolling contract.
+            {% if contract.closure_type %}
+            <strong>Closed {{ contract.closure_type }}
+            {% if contract.closure_type == 'notice' and contract.notice_end_date %}
+              — notice ended {{ contract.notice_end_date.strftime('%d %b %Y') }}
+            {% elif contract.closure_type == 'surrender' and contract.surrender_date %}
+              — surrendered {{ contract.surrender_date.strftime('%d %b %Y') }}
+            {% endif %}
+            </strong>
+            {% endif %}
         </span>
     </div>
 
     <div class="form-group">
         <label>Contract Document</label>
         {% if contract.contract_file_path %}
-        <div style="margin-bottom: 10px; padding: 10px 14px;
-                    background: var(--green-light); border-left: 4px solid var(--green-primary);
-                    font-size: 14px;">
+        <div style="margin-bottom:10px; padding:10px 14px;
+                    background:var(--green-light); border-left:4px solid var(--green-primary);
+                    font-size:14px;">
             &#10003; Document on file:
             <a href="{{ url_for('tenants.download_contract', tenant_id=tenant.id, contract_id=contract.id) }}"
-               target="_blank" style="color: var(--green-dark); font-weight: 600;">
+               target="_blank" style="color:var(--green-dark); font-weight:600;">
                 View / Download
             </a>
         </div>
-        <label for="contract_file" style="font-weight: 400; color: var(--grey-dark);">
+        <label for="contract_file" style="font-weight:400; color:var(--grey-dark);">
             Replace document (optional):
         </label>
         {% else %}
-        <div style="margin-bottom: 8px; padding: 8px 14px;
-                    background: var(--grey-light); border-left: 4px solid var(--grey-mid);
-                    font-size: 14px; color: var(--grey-dark);">
+        <div style="margin-bottom:8px; padding:8px 14px;
+                    background:var(--grey-light); border-left:4px solid var(--grey-mid);
+                    font-size:14px; color:var(--grey-dark);">
             No document uploaded yet.
         </div>
         {% endif %}
         <input type="file" id="contract_file" name="contract_file"
-               accept=".pdf,.jpg,.jpeg,.png"
-               style="font-size:15px;">
-        <span class="form-hint">PDF, JPG or PNG. Uploading a new file will replace the existing one.</span>
+               accept=".pdf,.jpg,.jpeg,.png" style="font-size:15px;">
+        <span class="form-hint">PDF, JPG or PNG. Uploading replaces the existing file.</span>
     </div>
 
-    <div class="mt-2">
-        <button type="submit" class="btn btn-primary">Save Changes</button>
+    <div class="mt-2" style="margin-bottom:32px;">
+        <button type="submit" class="btn btn-primary"
+                onclick="document.getElementById('form-action').value='save'">
+            Save Changes
+        </button>
         <a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}"
-           class="btn btn-secondary" style="margin-left: 8px;">Cancel</a>
+           class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
     </div>
+
+    {# ── Close Contract section — only for active contracts ── #}
+    {% if contract.is_active %}
+    <div style="border-top:2px solid var(--error); padding-top:24px; margin-top:8px;">
+
+        <h2 style="color:var(--error); font-size:18px; margin-bottom:4px;">
+            &#9888; Close This Contract
+        </h2>
+        <p style="font-size:14px; color:var(--text-secondary); margin-bottom:20px;">
+            Closing the contract is irreversible. The room will be marked vacant
+            and all future rent charges beyond the true end date will be set to £0.
+            This feeds into the deposit deduction calculation.
+        </p>
+
+        <div class="form-group">
+            <label>Closure Type</label>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-top:6px;">
+
+                <label style="display:flex; align-items:flex-start; gap:10px;
+                               cursor:pointer; font-weight:400;">
+                    <input type="radio" name="closure_type" value="notice"
+                           id="type-notice" style="margin-top:3px;"
+                           onchange="toggleClosureDates()">
+                    <div>
+                        <strong>Notice Period End</strong><br>
+                        <span style="font-size:13px; color:var(--text-secondary);">
+                            Tenant gave valid notice. Rent continues to the end of
+                            the notice period. Enter the last day rent is owed.
+                        </span>
+                    </div>
+                </label>
+
+                <label style="display:flex; align-items:flex-start; gap:10px;
+                               cursor:pointer; font-weight:400;">
+                    <input type="radio" name="closure_type" value="surrender"
+                           id="type-surrender" style="margin-top:3px;"
+                           onchange="toggleClosureDates()">
+                    <div>
+                        <strong>Early Surrender Accepted</strong><br>
+                        <span style="font-size:13px; color:var(--text-secondary);">
+                            You have agreed to release the tenant early.
+                            Rent is charged only to the agreed surrender date.
+                        </span>
+                    </div>
+                </label>
+
+            </div>
+        </div>
+
+        {# Notice end date #}
+        <div class="form-group" id="notice-date-group" style="display:none;">
+            <label for="notice_end_date">Notice Period End Date</label>
+            <input type="date" id="notice_end_date" name="notice_end_date"
+                   value="{{ contract.notice_end_date.isoformat() if contract.notice_end_date else '' }}">
+            <span class="form-hint">
+                Last day rent is owed under the notice period.
+                Future charges beyond this date will be set to £0.
+            </span>
+        </div>
+
+        {# Surrender date #}
+        <div class="form-group" id="surrender-date-group" style="display:none;">
+            <label for="surrender_date">Agreed Surrender Date</label>
+            <input type="date" id="surrender_date" name="surrender_date"
+                   value="{{ contract.surrender_date.isoformat() if contract.surrender_date else '' }}">
+            <span class="form-hint">
+                Agreed early exit date. Rent is only owed up to and including this date.
+                Future charges beyond this date will be set to £0.
+            </span>
+        </div>
+
+        <div class="form-group">
+            <label for="closure_notes">Closure Notes</label>
+            <textarea id="closure_notes" name="closure_notes" rows="3"
+                      placeholder="e.g. Notice received 1 Nov, surrender agreed 15 Nov…">{{ contract.closure_notes or '' }}</textarea>
+            <span class="form-hint">Optional. Recorded for audit purposes.</span>
+        </div>
+
+        {# Deduction rules summary #}
+        <div id="deduction-summary" style="display:none; margin-bottom:20px;">
+            <div class="card" id="summary-notice"
+                 style="display:none; font-size:13px; border-top-color:var(--error);">
+                <div class="card-title">Deposit Deduction Rules — Notice</div>
+                <ul style="margin:8px 0 0; padding-left:20px; line-height:1.8;">
+                    <li>Rent continues to end of notice period</li>
+                    <li>Deduct all rent owed + damages + utilities</li>
+                    <li>Return remainder to tenant</li>
+                </ul>
+            </div>
+            <div class="card" id="summary-surrender"
+                 style="display:none; font-size:13px; border-top-color:#f47738;">
+                <div class="card-title">Deposit Deduction Rules — Surrender</div>
+                <ul style="margin:8px 0 0; padding-left:20px; line-height:1.8;">
+                    <li>Charge rent to surrender date only</li>
+                    <li>Assess utilities and damages from that date</li>
+                    <li>Return remainder to tenant</li>
+                </ul>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center;">
+            <button type="submit" class="btn btn-primary"
+                    style="background:var(--error); border-color:var(--error);"
+                    id="close-btn" disabled
+                    onclick="document.getElementById('form-action').value='close'"
+                    onmousedown="document.getElementById('form-action').value='close'">
+                &#10006; Close Contract
+            </button>
+            <span style="font-size:13px; color:var(--text-secondary);">
+                Select a closure type and date above to enable this button.
+            </span>
+        </div>
+
+    </div>
+    {% else %}
+    {# Already closed — show closure summary #}
+    <div style="border-top:2px solid var(--grey-mid); padding-top:24px; margin-top:8px;">
+        <h2 style="font-size:16px; color:var(--grey-dark); margin-bottom:12px;">
+            Contract Closure Record
+        </h2>
+        <table style="max-width:420px;">
+            <tr>
+                <td style="color:var(--text-secondary); width:150px; padding:5px 0; border:none;">Closure Type</td>
+                <td style="padding:5px 0; border:none;">
+                    {% if contract.closure_type == 'notice' %}Notice Period
+                    {% elif contract.closure_type == 'surrender' %}Early Surrender
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td style="color:var(--text-secondary); padding:5px 0; border:none;">True End Date</td>
+                <td style="padding:5px 0; border:none;">
+                    {{ contract.end_date.strftime('%d %b %Y') if contract.end_date else '—' }}
+                </td>
+            </tr>
+            {% if contract.notice_end_date %}
+            <tr>
+                <td style="color:var(--text-secondary); padding:5px 0; border:none;">Notice End</td>
+                <td style="padding:5px 0; border:none;">{{ contract.notice_end_date.strftime('%d %b %Y') }}</td>
+            </tr>
+            {% endif %}
+            {% if contract.surrender_date %}
+            <tr>
+                <td style="color:var(--text-secondary); padding:5px 0; border:none;">Surrender Date</td>
+                <td style="padding:5px 0; border:none;">{{ contract.surrender_date.strftime('%d %b %Y') }}</td>
+            </tr>
+            {% endif %}
+            {% if contract.closure_notes %}
+            <tr>
+                <td style="color:var(--text-secondary); padding:5px 0; border:none;">Notes</td>
+                <td style="padding:5px 0; border:none; font-size:14px;">{{ contract.closure_notes }}</td>
+            </tr>
+            {% endif %}
+        </table>
+    </div>
+    {% endif %}
 
 </div>
 </form>
+
+<script>
+function toggleClosureDates() {
+    const notice   = document.getElementById('type-notice').checked;
+    const surrender = document.getElementById('type-surrender').checked;
+
+    document.getElementById('notice-date-group').style.display   = notice ? '' : 'none';
+    document.getElementById('surrender-date-group').style.display = surrender ? '' : 'none';
+    document.getElementById('deduction-summary').style.display   = (notice || surrender) ? '' : 'none';
+    document.getElementById('summary-notice').style.display      = notice ? '' : 'none';
+    document.getElementById('summary-surrender').style.display   = surrender ? '' : 'none';
+
+    // Enable close button only when a type is selected
+    document.getElementById('close-btn').disabled = !(notice || surrender);
+}
+</script>
 {% endblock %}

@@ -71,6 +71,19 @@
        class="btn btn-primary btn-sm">
       Request Extension
     </a>
+    {% if has_pending_end_request %}
+    <span class="btn btn-sm"
+          style="background:var(--grey-mid); border-color:var(--grey-mid); color:var(--grey-dark);
+                 cursor:default;" title="A notice request is already pending with your landlord.">
+      &#9203; Notice Pending&hellip;
+    </span>
+    {% else %}
+    <a href="{{ url_for('portal.end_contract_request', contract_id=contract.id) }}"
+       class="btn btn-sm"
+       style="background:var(--error); border-color:var(--error); color:#fff;">
+      &#10006; Give Notice / End Contract
+    </a>
+    {% endif %}
     {% endif %}
   </div>
 

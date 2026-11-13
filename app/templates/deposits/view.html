@@ -7,6 +7,10 @@
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <a href="{{ url_for('deposits.certificate', deposit_id=deposit.id) }}"
            class="btn btn-primary">&#8595; Download Certificate</a>
+        <a href="{{ url_for('deposits.settle', deposit_id=deposit.id) }}"
+           class="btn btn-primary"
+           style="background:var(--green-dark); border-color:var(--green-dark);">
+           &#8635; Settle Deposit</a>
         <a href="{{ url_for('deposits.edit', deposit_id=deposit.id) }}"
            class="btn btn-secondary">Edit</a>
         <a href="{{ url_for('deposits.index') }}"

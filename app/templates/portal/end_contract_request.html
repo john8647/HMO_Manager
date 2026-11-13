@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}End Contract Request{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+  <h1>End Contract Request</h1>
+  <a href="{{ url_for('portal.contracts') }}" class="btn btn-secondary">&larr; My Contracts</a>
+</div>
+
+<p class="text-muted" style="max-width:580px; margin-bottom:24px;">
+  Use this form to notify your landlord that you wish to end your tenancy.
+  For a standard notice, no date is needed — your landlord will confirm the
+  official end date. For an early surrender, include your requested date so
+  your landlord can consider it.
+</p>
+
+<div style="max-width:540px;">
+
+{# Contract summary #}
+<div class="card" style="margin-bottom:20px; font-size:14px;">
+  <div class="card-title">Your Contract</div>
+  <table style="margin:0;">
+    <tr>
+      <td style="color:var(--text-secondary); width:150px; padding:5px 0; border:none;">Property</td>
+      <td style="padding:5px 0; border:none;">
+        {{ contract.property.address_line1 }} &middot; {{ contract.room.room_name }}
+      </td>
+    </tr>
+    <tr>
+      <td style="color:var(--text-secondary); padding:5px 0; border:none;">Started</td>
+      <td style="padding:5px 0; border:none;">{{ contract.start_date.strftime('%d %b %Y') }}</td>
+    </tr>
+    <tr>
+      <td style="color:var(--text-secondary); padding:5px 0; border:none;">Current End</td>
+      <td style="padding:5px 0; border:none;">
+        {{ contract.end_date.strftime('%d %b %Y') if contract.end_date else 'Rolling (no fixed end)' }}
+      </td>
+    </tr>
+    <tr>
+      <td style="color:var(--text-secondary); padding:5px 0; border:none;">Monthly Rent</td>
+      <td style="padding:5px 0; border:none; font-weight:700;">
+        £{{ "%.2f"|format(contract.monthly_rent) }}
+      </td>
+    </tr>
+  </table>
+</div>
+
+<form method="POST">
+
+  <div class="form-group">
+    <label>What are you requesting? <span style="color:var(--error);">*</span></label>
+    <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
+
+      <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; font-weight:400;">
+        <input type="radio" name="notice_type" value="notice" id="type-notice"
+               style="margin-top:3px;" required onchange="toggleSurrenderDate()">
+        <div>
+          <strong>Give Notice to Quit</strong><br>
+          <span style="font-size:13px; color:var(--text-secondary);">
+            I want to end my tenancy in line with my notice period.
+            Rent continues until the notice period expires.
+          </span>
+        </div>
+      </label>
+
+      <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; font-weight:400;">
+        <input type="radio" name="notice_type" value="surrender" id="type-surrender"
+               style="margin-top:3px;" onchange="toggleSurrenderDate()">
+        <div>
+          <strong>Request Early Surrender</strong><br>
+          <span style="font-size:13px; color:var(--text-secondary);">
+            I need to leave before my notice period ends and would like to
+            discuss an early surrender with my landlord.
+            This is a request only — the landlord must agree.
+          </span>
+        </div>
+      </label>
+
+    </div>
+  </div>
+
+  {# Surrender date — shown only when Early Surrender is selected #}
+  <div class="form-group" id="surrender-date-group" style="display:none;">
+    <label for="surrender_date">
+      Requested Surrender Date <span style="color:var(--error);">*</span>
+    </label>
+    <input type="date" id="surrender_date" name="surrender_date"
+           min="{{ (today.isoformat()) }}">
+    <span class="form-hint">
+      The date you would like to vacate the property.
+      Your landlord will confirm whether this date is accepted and
+      update your contract. Rent is charged up to and including this date if agreed.
+    </span>
+  </div>
+
+  <div class="form-group">
+    <label for="notes">Additional Notes (optional)</label>
+    <textarea id="notes" name="notes" rows="4"
+              placeholder="e.g. My circumstances have changed, I need to relocate for work…"></textarea>
+    <span class="form-hint">
+      Any context that helps your landlord understand your situation.
+    </span>
+  </div>
+
+  <div class="card" style="margin-bottom:20px; font-size:13px; color:var(--text-secondary);
+                            border-top-color:var(--error);">
+    &#9888; Submitting this form does <strong>not</strong> end your contract immediately.
+    Your landlord will review and contact you to confirm the end date and
+    any deposit deductions. Rent continues until the confirmed end date.
+  </div>
+
+  <div style="display:flex; gap:10px;">
+    <button type="submit" class="btn btn-primary"
+            style="background:var(--error); border-color:var(--error);">
+      Submit Request
+    </button>
+    <a href="{{ url_for('portal.contracts') }}" class="btn btn-secondary">Cancel</a>
+  </div>
+
+</form>
+</div>
+
+<script>
+function toggleSurrenderDate() {
+  const isSurrender = document.getElementById('type-surrender').checked;
+  const group       = document.getElementById('surrender-date-group');
+  const dateInput   = document.getElementById('surrender_date');
+  group.style.display  = isSurrender ? '' : 'none';
+  dateInput.required   = isSurrender;
+}
+</script>
+{% endblock %}

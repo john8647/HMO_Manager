@@ -124,6 +124,17 @@ class TenantContract(db.Model):
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # ── Contract closure fields ───────────────────────────────────────────────
+    # closure_type: 'notice' = ran to end of notice period
+    #               'surrender' = early surrender accepted
+    # notice_end_date: last date rent is owed under notice period
+    # surrender_date: agreed early exit date (used instead if surrender accepted)
+    # closure_notes: landlord notes on the closure
+    closure_type     = db.Column(db.String(20))   # 'notice' | 'surrender' | None
+    notice_end_date  = db.Column(db.Date)
+    surrender_date   = db.Column(db.Date)
+    closure_notes    = db.Column(db.Text)
+
     property = db.relationship('Property', backref='contracts')
     invoices = db.relationship('Invoice', backref='contract', lazy='dynamic')
     bill_shares = db.relationship('BillTenantShare', backref='contract', lazy='dynamic')

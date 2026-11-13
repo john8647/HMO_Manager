@@ -35,6 +35,26 @@
     payments are matched from bank imports.
 </p>
 
+<div style="margin-bottom:16px;">
+    {% if show_ended %}
+    <a href="{{ url_for('invoices.rent_roll', property_id=selected_property_id or '') }}"
+       class="btn btn-primary btn-sm">&#10004; Showing Ended Tenants</a>
+    <span style="font-size:13px; color:var(--text-secondary); margin-left:8px;">
+        Ended tenants with outstanding balances are shown below the main table.
+    </span>
+    {% else %}
+    <a href="{{ url_for('invoices.rent_roll', property_id=selected_property_id or '', show_ended=1) }}"
+       class="btn btn-secondary btn-sm">Show Ended Tenants</a>
+    <span style="font-size:13px; color:var(--text-secondary); margin-left:8px;">
+        {% if ended_rows|length > 0 %}
+            {{ ended_rows|length }} ended tenant(s) with balances pending settlement.
+        {% else %}
+            No ended tenants with outstanding balances.
+        {% endif %}
+    </span>
+    {% endif %}
+</div>
+
 <!-- Summary cards -->
 <div class="card-grid" style="margin-bottom:24px;">
     <div class="card">
@@ -239,12 +259,122 @@
 {% else %}
 <div class="card" style="max-width:500px;">
     <div class="card-title">No active tenants found</div>
-    <p style="margin:8px 0 16px;">
-        Add tenants with active contracts to see the rent roll.
+    <p style="margin:8px 0 4px;">
+        No tenants with active contracts are on record.
     </p>
+    {% if not show_ended %}
+    <p style="margin:0 0 16px; font-size:14px; color:var(--text-secondary);">
+        Use <strong>Show Ended Tenants</strong> above to view accounts pending deposit settlement.
+    </p>
+    {% endif %}
     <a href="{{ url_for('tenants.add') }}" class="btn btn-primary">
         + Add Tenant
     </a>
 </div>
 {% endif %}
+
+{# ── Ended tenants section ── #}
+{% if show_ended and ended_rows %}
+<div style="margin-top:36px;">
+    <h2 style="font-size:16px; margin-bottom:4px;">
+        &#9654; Ended Tenants — Deposit Settlement Pending
+    </h2>
+    <p class="text-muted" style="font-size:13px; margin-bottom:12px;">
+        Tenants whose contracts have ended. Balances should be resolved
+        against their deposit before final return.
+    </p>
+    <table>
+        <thead>
+            <tr>
+                <th>Tenant</th>
+                <th>Property / Room</th>
+                <th>Contract Ended</th>
+                <th>Closure Type</th>
+                <th>Rent Balance</th>
+                <th>Bill Balance</th>
+                <th>Total Owed</th>
+                <th>Deposit</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in ended_rows %}
+        <tr style="background:#f7f4f0;">
+            <td>
+                <a href="{{ url_for('tenants.view', tenant_id=row.tenant.id) }}">
+                    <strong>{{ row.tenant.full_name }}</strong>
+                </a>
+            </td>
+            <td style="font-size:13px;">
+                {{ row.property.property_ref or row.property.address_line1 }}<br>
+                <span style="color:var(--text-secondary);">{{ row.room.room_name }}</span>
+            </td>
+            <td style="font-size:13px;">
+                {{ row.contract.end_date.strftime('%d %b %Y') if row.contract.end_date else '—' }}
+            </td>
+            <td style="font-size:13px;">
+                {% if row.contract.closure_type == 'notice' %}
+                    <span class="badge badge-grey">Notice</span>
+                {% elif row.contract.closure_type == 'surrender' %}
+                    <span class="badge badge-yellow">Surrender</span>
+                {% else %}
+                    <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <td style="text-align:right;">
+                <span {% if row.rent_balance > 0 %}style="color:var(--error);"{% endif %}>
+                    {% if row.rent_balance < 0 %}CR {% endif %}
+                    £{{ '%.2f'|format(row.rent_balance|abs) }}
+                </span>
+            </td>
+            <td style="text-align:right;">
+                <span {% if row.bill_balance > 0 %}style="color:var(--error);"{% endif %}>
+                    {% if row.bill_balance < 0 %}CR {% endif %}
+                    £{{ '%.2f'|format(row.bill_balance|abs) }}
+                </span>
+            </td>
+            <td style="text-align:right;">
+                {% if row.total_balance > 0 %}
+                    <strong style="color:var(--error);">
+                        £{{ '%.2f'|format(row.total_balance) }}
+                    </strong>
+                {% elif row.total_balance < 0 %}
+                    <strong style="color:var(--green-dark);">
+                        £{{ '%.2f'|format(row.total_balance|abs) }} CR
+                    </strong>
+                {% else %}
+                    <strong style="color:var(--green-dark);">£0.00</strong>
+                {% endif %}
+            </td>
+            <td style="font-size:13px;">
+                {% set dep = row.tenant.deposits|selectattr('contract_id','eq',row.contract.id)|first
+                             if row.tenant.deposits else None %}
+                {% if dep %}
+                    £{{ '%.2f'|format(dep.amount) }}<br>
+                    <span class="badge badge-grey" style="font-size:11px;">
+                        {{ dep.status|title }}
+                    </span>
+                {% else %}
+                    <span class="text-muted">No deposit</span>
+                {% endif %}
+            </td>
+            <td>
+                {% set dep = row.tenant.deposits|selectattr('contract_id','eq',row.contract.id)|first
+                             if row.tenant.deposits else None %}
+                {% if dep %}
+                <a href="{{ url_for('deposits.settle', deposit_id=dep.id) }}"
+                   class="btn btn-primary btn-sm">
+                    &#8635; Settle
+                </a>
+                {% endif %}
+                <a href="{{ url_for('tenants.view', tenant_id=row.tenant.id) }}"
+                   class="btn btn-secondary btn-sm">View</a>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
 {% endblock %}

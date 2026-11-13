@@ -43,8 +43,10 @@
                     <span class="badge badge-green">Paid</span>
                 {% elif inv.status == 'overdue' %}
                     <span class="badge badge-red">Overdue</span>
+                {% elif inv.status == 'partially_paid' %}
+                    <span class="badge badge-yellow">Part Paid</span>
                 {% elif inv.status == 'issued' %}
-                    <span class="badge badge-yellow">Issued</span>
+                    <span class="badge badge-blue">Issued</span>
                 {% else %}
                     <span class="badge badge-grey">Draft</span>
                 {% endif %}

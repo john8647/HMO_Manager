@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}Settle Deposit — {{ tenant.full_name }}{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+  <h1>Settle Deposit</h1>
+  <div style="display:flex; gap:8px;">
+    <a href="{{ url_for('deposits.view', deposit_id=deposit.id) }}"
+       class="btn btn-secondary">&larr; Back to Deposit</a>
+    <a href="{{ url_for('invoices.rent_roll', show_ended=1) }}"
+       class="btn btn-secondary">Rent Roll</a>
+  </div>
+</div>
+
+<p class="text-muted" style="max-width:640px; margin-bottom:20px;">
+  Review the live balance for <strong>{{ tenant.full_name }}</strong>,
+  set any deductions, and record the amount returned.
+  Values are pre-filled from the live account — adjust as needed before saving.
+</p>
+
+{# ── Contract & closure summary ── #}
+{% if contract %}
+<div class="card" style="max-width:720px; margin-bottom:20px; font-size:14px;">
+  <div class="card-title">
+    Contract Summary
+    {% if contract.is_active %}
+      <span class="badge badge-green" style="margin-left:8px; font-size:11px;">Active</span>
+    {% else %}
+      <span class="badge badge-grey" style="margin-left:8px; font-size:11px;">Ended</span>
+    {% endif %}
+  </div>
+  <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:14px;">
+    <div>
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase;
+                  letter-spacing:.06em; color:var(--grey-dark);">Property</div>
+      <div style="margin-top:3px;">
+        {{ contract.property.address_line1 }}<br>
+        <span style="color:var(--text-secondary);">{{ contract.room.room_name }}</span>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase;
+                  letter-spacing:.06em; color:var(--grey-dark);">Contract End</div>
+      <div style="margin-top:3px;">
+        {{ contract.end_date.strftime('%d %b %Y') if contract.end_date else '—' }}
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase;
+                  letter-spacing:.06em; color:var(--grey-dark);">Closure Type</div>
+      <div style="margin-top:3px;">
+        {% if contract.closure_type == 'notice' %}
+          <span class="badge badge-grey">Notice Period</span>
+          {% if contract.notice_end_date %}
+          <div style="font-size:12px; color:var(--text-secondary); margin-top:3px;">
+            ended {{ contract.notice_end_date.strftime('%d %b %Y') }}
+          </div>
+          {% endif %}
+        {% elif contract.closure_type == 'surrender' %}
+          <span class="badge badge-yellow">Early Surrender</span>
+          {% if contract.surrender_date %}
+          <div style="font-size:12px; color:var(--text-secondary); margin-top:3px;">
+            vacated {{ contract.surrender_date.strftime('%d %b %Y') }}
+          </div>
+          {% endif %}
+        {% else %}
+          <span class="text-muted">Not recorded</span>
+        {% endif %}
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase;
+                  letter-spacing:.06em; color:var(--grey-dark);">Monthly Rent</div>
+      <div style="margin-top:3px; font-weight:700;">
+        £{{ "%.2f"|format(contract.monthly_rent) }}
+      </div>
+    </div>
+  </div>
+
+  {% if contract.closure_type == 'surrender' %}
+  <div style="margin-top:12px; padding:10px 14px; background:#fff7e0;
+              border-left:4px solid #f4a000; font-size:13px; border-radius:4px;">
+    <strong>Surrender rules:</strong> Charge rent to surrender date only.
+    Assess utilities and damages. Return remainder to tenant.
+  </div>
+  {% elif contract.closure_type == 'notice' %}
+  <div style="margin-top:12px; padding:10px 14px; background:#fff0ee;
+              border-left:4px solid var(--error); font-size:13px; border-radius:4px;">
+    <strong>Notice rules:</strong> Rent continues to end of notice period.
+    Deduct all rent owed + damages + utilities. Return remainder.
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Live balance ── #}
+<div class="card-grid" style="max-width:720px; margin-bottom:24px;">
+  <div class="card" style="text-align:center;
+       border-top-color:{% if total_bal > 0 %}var(--error){% elif total_bal < 0 %}var(--green-primary){% else %}var(--green-primary){% endif %};">
+    <div class="card-title">Total Balance</div>
+    <div class="card-value"
+         style="color:{% if total_bal > 0 %}var(--error){% else %}var(--green-dark){% endif %};">
+      {% if total_bal < 0 %}CR {% endif %}£{{ "%.2f"|format(total_bal|abs) }}
+    </div>
+    <div class="card-sub">
+      {% if total_bal > 0 %}Tenant owes this amount{% elif total_bal < 0 %}Tenant is in credit{% else %}Account clear{% endif %}
+    </div>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div class="card-title">Rent Balance</div>
+    <div class="card-value" style="font-size:20px;
+         color:{% if rent_bal > 0 %}var(--error){% else %}var(--green-dark){% endif %};">
+      {% if rent_bal < 0 %}CR {% endif %}£{{ "%.2f"|format(rent_bal|abs) }}
+    </div>
+    <div class="card-sub">Rent &amp; advances</div>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div class="card-title">Bills Balance</div>
+    <div class="card-value" style="font-size:20px;
+         color:{% if bill_bal > 0 %}var(--error){% else %}var(--green-dark){% endif %};">
+      {% if bill_bal < 0 %}CR {% endif %}£{{ "%.2f"|format(bill_bal|abs) }}
+    </div>
+    <div class="card-sub">Shared bills</div>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div class="card-title">Deposit Held</div>
+    <div class="card-value" style="font-size:20px;">
+      £{{ "%.2f"|format(deposit.amount) }}
+    </div>
+    <div class="card-sub">
+      <span class="badge
+        {% if deposit.status == 'paid' %}badge-green
+        {% elif deposit.status == 'deducting' %}badge-yellow
+        {% elif deposit.status == 'withdrawn' %}badge-red
+        {% elif deposit.status == 'protected' %}badge-blue
+        {% else %}badge-grey{% endif %}">
+        {{ deposit.status|title }}
+      </span>
+    </div>
+  </div>
+</div>
+
+{# ── Settlement form ── #}
+<form method="POST" style="max-width:580px;">
+
+  <div class="form-group">
+    <label for="deduction_amount">
+      Total Deduction Amount (£)
+    </label>
+    <input type="number" id="deduction_amount" name="deduction_amount"
+           step="0.01" min="0"
+           value="{{ "%.2f"|format(suggested_deduction) }}"
+           oninput="calcReturned()">
+    <span class="form-hint">
+      Suggested from live balance (£{{ "%.2f"|format(suggested_deduction) }}).
+      Adjust to include damages, cleaning, etc. beyond the rent/bills balance.
+    </span>
+  </div>
+
+  <div class="form-group">
+    <label for="deduction_reason">Deduction Reason / Breakdown</label>
+    <textarea id="deduction_reason" name="deduction_reason" rows="5">{{ default_reason }}</textarea>
+    <span class="form-hint">
+      Pre-filled from account balances and closure type.
+      Add damage, cleaning or other costs if applicable.
+    </span>
+  </div>
+
+  <div class="form-group">
+    <label for="amount_returned">Amount Returned to Tenant (£)</label>
+    <input type="number" id="amount_returned" name="amount_returned"
+           step="0.01" min="0"
+           value="{{ "%.2f"|format(suggested_returned) }}">
+    <span class="form-hint">
+      Auto-calculated as Deposit (£{{ "%.2f"|format(deposit.amount) }}) minus Deduction.
+      Override if needed.
+    </span>
+  </div>
+
+  <div class="form-group">
+    <label for="returned_date">Date Returned</label>
+    <input type="date" id="returned_date" name="returned_date"
+           value="{{ today.isoformat() }}">
+    <span class="form-hint">Leave blank to record later.</span>
+  </div>
+
+  <div class="form-group">
+    <label for="status">Settlement Status</label>
+    <select id="status" name="status">
+      {% for val, label, desc in statuses %}
+      <option value="{{ val }}"
+        {% if (val == 'deducting' and suggested_deduction > 0) or
+              (val == 'paid' and suggested_deduction == 0) %}selected{% endif %}>
+        {{ label }} — {{ desc }}
+      </option>
+      {% endfor %}
+    </select>
+    <span class="form-hint">
+      Use <strong>Deducting</strong> while deductions are still being finalised.
+      Set to <strong>Paid</strong> once the deposit has been returned.
+    </span>
+  </div>
+
+  <div style="display:flex; gap:10px; margin-top:24px;">
+    <button type="submit" class="btn btn-primary">&#10003; Save Settlement</button>
+    <a href="{{ url_for('deposits.view', deposit_id=deposit.id) }}"
+       class="btn btn-secondary">Cancel</a>
+  </div>
+
+</form>
+
+<script>
+function calcReturned() {
+  const deposit    = {{ deposit.amount|float }};
+  const deduction  = parseFloat(document.getElementById('deduction_amount').value) || 0;
+  const returned   = Math.max(deposit - deduction, 0);
+  document.getElementById('amount_returned').value = returned.toFixed(2);
+}
+</script>
+{% endblock %}

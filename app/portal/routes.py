@@ -8,13 +8,14 @@ and scopes all data to that tenant only.
 """
 
 from flask import (Blueprint, render_template, redirect, url_for,
-                   flash, request, abort)
+                   flash, request, abort, Response, send_file)
 from flask_login import login_required, current_user
 from functools import wraps
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+import os
 from app import db
-from app.models import Tenant, TenantContract, Transaction, Task, Property, Room
+from app.models import Tenant, TenantContract, Transaction, Task, Property, Room, Invoice, User
 
 portal_bp = Blueprint('portal', __name__)
 
@@ -61,6 +62,13 @@ def _active_contract(tenant):
     return TenantContract.query.filter_by(
         tenant_id=tenant.id, is_active=True
     ).first()
+
+
+def _latest_contract(tenant):
+    """Return the most recent contract (active or closed), or None."""
+    return TenantContract.query.filter_by(
+        tenant_id=tenant.id
+    ).order_by(TenantContract.start_date.desc()).first()
 
 
 # ── Balance helpers (mirrors rent_roll.py) ───────────────────────────────────
@@ -146,9 +154,19 @@ def contracts():
         tenant_id=tenant.id
     ).order_by(TenantContract.start_date.desc()).all()
     today = date.today()
+
+    # Flag whether a pending end-contract request exists for this tenant
+    has_pending_end_request = Task.query.filter(
+        Task.tenant_id  == tenant.id,
+        Task.category   == 'contract_query',
+        Task.status.in_(['open', 'in_progress']),
+        Task.title.like('End Contract Request%'),
+    ).first() is not None
+
     return render_template('portal/contracts.html',
                            tenant=tenant,
                            contracts=contracts,
+                           has_pending_end_request=has_pending_end_request,
                            today=today)
 
 
@@ -251,17 +269,118 @@ def extend_contract(contract_id):
                            min_end=min_end)
 
 
+# ── End Contract Request ──────────────────────────────────────────────────────
+
+@portal_bp.route('/contracts/<int:contract_id>/end-request', methods=['GET', 'POST'])
+@login_required
+@tenant_required
+def end_contract_request(contract_id):
+    tenant   = _get_tenant()
+    contract = TenantContract.query.filter_by(
+        id=contract_id, tenant_id=tenant.id, is_active=True
+    ).first_or_404()
+
+    today = date.today()
+
+    # Check whether a pending end-contract task already exists for this contract
+    existing_request = Task.query.filter(
+        Task.tenant_id   == tenant.id,
+        Task.category    == 'contract_query',
+        Task.status.in_(['open', 'in_progress']),
+        Task.title.like('End Contract Request%'),
+    ).first()
+
+    if existing_request:
+        flash(
+            'You already have a pending end-contract request. '
+            'Your landlord will be in touch. '
+            'If you need to update it, please contact your landlord directly.',
+            'info'
+        )
+        return redirect(url_for('portal.contracts'))
+
+    if request.method == 'POST':
+        notice_type    = request.form.get('notice_type', '').strip()
+        surrender_date_s = request.form.get('surrender_date', '').strip()
+        notes          = request.form.get('notes', '').strip()
+
+        if notice_type not in ('notice', 'surrender'):
+            flash('Please select a notice type.', 'error')
+            return redirect(url_for('portal.end_contract_request',
+                                    contract_id=contract_id))
+
+        # Validate surrender date when type is surrender
+        surrender_date = None
+        if notice_type == 'surrender':
+            if not surrender_date_s:
+                flash('Please enter your requested surrender date.', 'error')
+                return redirect(url_for('portal.end_contract_request',
+                                        contract_id=contract_id))
+            try:
+                surrender_date = datetime.strptime(surrender_date_s, '%Y-%m-%d').date()
+                if surrender_date <= today:
+                    flash('Surrender date must be in the future.', 'error')
+                    return redirect(url_for('portal.end_contract_request',
+                                            contract_id=contract_id))
+            except ValueError:
+                flash('Invalid date.', 'error')
+                return redirect(url_for('portal.end_contract_request',
+                                        contract_id=contract_id))
+
+        label = 'Notice to Quit' if notice_type == 'notice' else 'Request Early Surrender'
+        title = f'End Contract Request — {label} — {tenant.full_name}'
+        description = (
+            f'Tenant submitted via portal on {today.strftime("%d %b %Y")}.\n'
+            f'Type: {label}.\n'
+        )
+        if surrender_date:
+            description += f'Requested surrender date: {surrender_date.strftime("%d %b %Y")}.\n'
+        if notes:
+            description += f'Tenant notes: {notes}'
+
+        task = Task(
+            user_id=contract.user_id,
+            title=title,
+            description=description,
+            category='contract_query',
+            priority='high',
+            status='open',
+            property_id=contract.property_id,
+            room_id=contract.room_id,
+            tenant_id=tenant.id,
+            is_public=True,
+            repeat='none',
+            time_bound=False,
+        )
+        db.session.add(task)
+        db.session.commit()
+
+        flash(
+            'Your request has been sent to the landlord. '
+            'They will contact you to confirm the end date and next steps.',
+            'success'
+        )
+        return redirect(url_for('portal.contracts'))
+
+    return render_template('portal/end_contract_request.html',
+                           tenant=tenant,
+                           contract=contract,
+                           today=today)
+
+
 # ── Rent roll (live snapshot — tenant's own row only) ─────────────────────────
 
 @portal_bp.route('/rent-roll')
 @login_required
 @tenant_required
 def rent_roll():
-    tenant   = _get_tenant()
-    contract = _active_contract(tenant)
-    today    = date.today()
+    tenant          = _get_tenant()
+    active_contract = _active_contract(tenant)
+    contract        = active_contract or _latest_contract(tenant)
+    today           = date.today()
 
     if not contract:
+        # Truly no contract at all
         return render_template('portal/rent_roll.html',
                                tenant=tenant, row=None, today=today)
 
@@ -271,13 +390,15 @@ def rent_roll():
                   - _tx_sum(tenant.id, 'cr', ['Bills'])
     total_balance = rent_balance + bill_balance
 
-    # Recent transactions
+    # All transactions (more rows since contract may be closed)
     transactions = Transaction.query.filter_by(
         tenant_id=tenant.id,
-    ).order_by(Transaction.transaction_date.desc()).limit(20).all()
+    ).order_by(Transaction.transaction_date.desc()).limit(50).all()
 
     status = 'current'
-    if total_balance < Decimal('-0.01'):
+    if not active_contract:
+        status = 'closed'
+    elif total_balance < Decimal('-0.01'):
         status = 'credit'
     elif total_balance > Decimal('0.01'):
         if contract.next_rent_due and contract.next_rent_due < today:
@@ -286,17 +407,18 @@ def rent_roll():
             status = 'outstanding'
 
     row = {
-        'tenant':        tenant,
-        'contract':      contract,
-        'property':      contract.property,
-        'room':          contract.room,
-        'monthly_rent':  Decimal(str(contract.monthly_rent or 0)),
-        'next_rent_due': contract.next_rent_due,
-        'rent_balance':  rent_balance,
-        'bill_balance':  bill_balance,
-        'total_balance': total_balance,
-        'status':        status,
-        'transactions':  transactions,
+        'tenant':          tenant,
+        'contract':        contract,
+        'is_active':       bool(active_contract),
+        'property':        contract.property,
+        'room':            contract.room,
+        'monthly_rent':    Decimal(str(contract.monthly_rent or 0)),
+        'next_rent_due':   contract.next_rent_due if active_contract else None,
+        'rent_balance':    rent_balance,
+        'bill_balance':    bill_balance,
+        'total_balance':   total_balance,
+        'status':          status,
+        'transactions':    transactions,
     }
 
     return render_template('portal/rent_roll.html',
@@ -399,3 +521,55 @@ def add_task():
                            contract=contract,
                            categories=TENANT_CATEGORIES,
                            priorities=PRIORITIES)
+
+
+# ── Invoices ──────────────────────────────────────────────────────────────────
+
+@portal_bp.route('/invoices')
+@login_required
+@tenant_required
+def invoices():
+    tenant   = _get_tenant()
+    invoices = Invoice.query.filter_by(
+        tenant_id=tenant.id
+    ).order_by(Invoice.issue_date.desc()).all()
+    return render_template('portal/invoices.html',
+                           tenant=tenant,
+                           invoices=invoices)
+
+
+@portal_bp.route('/invoices/<int:invoice_id>/pdf')
+@login_required
+@tenant_required
+def download_invoice_pdf(invoice_id):
+    """Serve an invoice PDF to the tenant who owns it."""
+    tenant  = _get_tenant()
+    invoice = Invoice.query.filter_by(
+        id=invoice_id, tenant_id=tenant.id
+    ).first_or_404()
+
+    PDF_FOLDER = os.path.join('app', 'static', 'uploads', 'invoices')
+
+    # 1. Try the saved file first
+    if invoice.pdf_path:
+        filepath = os.path.join(PDF_FOLDER, invoice.pdf_path)
+        if os.path.exists(filepath):
+            return send_file(
+                filepath,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=f'{invoice.invoice_number}.pdf'
+            )
+
+    # 2. Generate on the fly (saves to disk as a side-effect for next time)
+    try:
+        from app.invoices.routes import _generate_invoice_pdf
+        pdf_bytes, filename = _generate_invoice_pdf(invoice)
+        return Response(
+            pdf_bytes,
+            mimetype='application/pdf',
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
+        )
+    except Exception as e:
+        flash('PDF is not available yet. Please contact your landlord.', 'error')
+        return redirect(url_for('portal.invoices'))

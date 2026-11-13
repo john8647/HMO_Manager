@@ -64,6 +64,11 @@ adds = [
     ('tasks',        'repeat',             "VARCHAR(20) DEFAULT 'none'"),
     ('tasks',        'time_bound',         'BOOLEAN DEFAULT 0'),
     ('tasks',        'is_public',          'BOOLEAN DEFAULT 0'),
+    # Contract closure fields
+    ('tenant_contracts', 'closure_type',    'VARCHAR(20)'),
+    ('tenant_contracts', 'notice_end_date', 'DATE'),
+    ('tenant_contracts', 'surrender_date',  'DATE'),
+    ('tenant_contracts', 'closure_notes',   'TEXT'),
 ]
 
 for table, col, defn in adds:

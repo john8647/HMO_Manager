@@ -1,119 +1,148 @@
-# HMO Landlord Management System
+# HMO LandlordApp
 
-## What is this system?
-
-This is a private web-based management tool designed for HMO (House in Multiple Occupation) landlords. It helps you run the day-to-day financial and administrative side of your room-renting business from one place.
-
-You can use it to:
-
-- Record and track tenants, rooms, and contracts across all your properties
-- Automatically calculate each tenant's fair share of shared bills (gas, electricity, council tax)
-- Generate and download professional PDF invoices for tenants each month
-- Upload your bank statement CSV and match payments to tenants
-- Record business expenses and cash payments
-- Export a clean financial statement for QuickFile (for your Self Assessment tax return)
-- Store and track safety certificates, compliance documents, and key filing dates
-- Manage jobs and tasks linked to specific properties, rooms, or tenants
-- Keep deposit records with DPS references and generate deposit certificates
+A full-stack Flask web application for managing Houses in Multiple Occupation (HMO) rental properties. Built for private landlords to track tenants, contracts, rent, bills, invoices, and deposits — with a self-service tenant portal.
 
 ---
 
-## Who can use it?
+## Features Overview
 
-| Role | What they can do |
+### Landlord Dashboard
+- Summary cards: active tenants, properties, outstanding rent, overdue invoices
+- Quick-action links to common tasks
+- Recent activity feed
+
+### Properties & Rooms
+- Add and manage multiple properties with address, postcode, and EPC details
+- Define rooms per property (room name, floor, en-suite, monthly rent)
+- Room occupancy status tracked automatically via active contracts
+
+### Tenants
+- Tenant profiles: name, email, phone, emergency contact, notes
+- Link tenants to rooms via contracts
+- View full tenancy history per tenant
+
+### Contracts
+- Create contracts with start/end dates, monthly rent, deposit amount, and notice period
+- Contract closure types: **Notice Period** and **Early Surrender**
+  - Notice Period: records notice end date
+  - Early Surrender: records agreed surrender date
+- Contract status tracked (`is_active` flag)
+- Landlord can record closure type and dates when ending a contract
+
+### Rent Roll
+- Live summary of all active tenants: rent balance, bills balance, total balance, next rent due
+- Colour-coded status badges: Paid, Outstanding, Overdue, Partial
+- **Show Ended Tenants** toggle: reveals tenants with closed contracts for deposit settlement review
+- Ended tenants display: contract end date, closure type badge, live balances, deposit held + status, Settle button
+
+### Transactions
+- Manual rent charge and payment recording
+- Bill charge allocation per tenant
+- Transaction history with running balance
+- Supports credit entries (advance payments, overpayments)
+
+### Invoices
+- Create invoices with line items, period dates, issue date, due date
+- One-off charge addition to existing invoices
+- Status workflow: Draft → Issued → Partially Paid → Paid / Overdue
+  - **badge-blue** for Issued, green for Paid, red for Overdue, yellow for Partial
+- PDF generation via xhtml2pdf; PDFs saved to `app/static/uploads/invoices/`
+- Payment recording with notes and date
+- Arrears carried forward field
+
+### Deposits
+- Record deposit amount, scheme, scheme reference, protection date, status
+- Status values: Received, Protected, Deducting, Paid, Withdrawn
+- **Deposit Settlement Workflow** (accessible from Rent Roll and Deposit view):
+  - Live balance tiles: Total, Rent, Bills, Deposit Held
+  - Contract closure summary with deduction rules card
+  - Pre-populated deduction amount (from live transaction balance)
+  - Pre-populated deduction reason (from closure type, dates, and balances)
+  - Auto-calculated amount returned (Deposit − Deduction, via JS)
+  - Returned date and status dropdown
+  - Defaults to `Deducting` if balance > 0, `Paid` if zero balance
+
+### Tasks
+- Landlord task list for follow-ups, maintenance notes, and tenant requests
+- Tasks linked to tenants; status: Pending, In Progress, Completed
+- Task description/notes field
+
+### Tenant Portal
+- Separate login flow for tenants (`/portal`)
+- **My Account**: rent balance summary, recent transactions, active (or most recent) contract details
+- **My Contracts**: full contract history; "Give Notice / End Contract" button
+  - **End Contract Request form**: choose Notice or Early Surrender; Early Surrender requires a future surrender date (validated client- and server-side); request appended to task description
+  - Button replaced by "Notice Pending…" indicator once a request is submitted (until landlord resolves task)
+- **My Invoices**: list of all invoices with status badges (blue=Issued, green=Paid, etc.); PDF download button — serves landlord-generated PDF from disk or generates on the fly
+- **My Rent Roll**: tenant's own balance view (read-only)
+
+### Auto-Logout (Inactivity Timeout)
+- Idle timer: 5 minutes of inactivity triggers a 60-second countdown warning (toast, bottom-right)
+- Warning shows remaining seconds live; resets on any mouse, keyboard, touch, or scroll activity
+- Redirects to logout at zero — applies to all authenticated users (landlord and tenant)
+
+### Authentication
+- Separate landlord and tenant login
+- Role-based access control via `@landlord_required` / `@tenant_required` decorators
+- Password hashing via Werkzeug
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
 |---|---|
-| **Administrator** | Full access to everything — all landlords, all properties, all finances |
-| **Landlord** | Access to their own properties, tenants, finances, and documents only |
-| **Tenant (Portal)** | View their own invoices, payments, contract, and send messages or raise tasks |
+| Backend | Python 3, Flask |
+| ORM | SQLAlchemy (Flask-SQLAlchemy) |
+| Database | SQLite (dev) |
+| Templating | Jinja2 |
+| PDF Generation | xhtml2pdf |
+| Auth | Flask-Login |
+| Migrations | Flask-Migrate (Alembic) |
+| Frontend | Vanilla HTML/CSS/JS (custom design system) |
+| File Storage | Local filesystem (`app/static/uploads/`) |
 
 ---
 
-## How to start the system (on your PC)
+## Project Structure
 
-> You need to have **Python** and **UV** installed. Your developer will set this up for you initially.
-
-1. Open a terminal (Command Prompt or PowerShell)
-2. Navigate to the project folder:
-   ```
-   cd C:\scripts\codeInst_projects\Project5\Prototype
-   ```
-3. Start the application:
-   ```
-   uv run flask run
-   ```
-4. Open your web browser and go to:
-   ```
-   http://localhost:5000
-   ```
-5. Log in with your username and password.
-
----
-
-## How to use the system
-
-### Adding a Property and Rooms
-1. Go to **Properties** in the left menu
-2. Click **Add Property** and fill in the address details
-3. Inside the property, click **Add Room** for each lettable room
-
-### Adding a Tenant
-1. Go to **Tenants** → **Add Tenant**
-2. Fill in their personal details, contact information, and Right to Rent reference
-3. Assign them to a property and room
-4. Create their **Contract** with start date, rent amount, and billing date
-5. Record their **Deposit** amount and DPS reference number
-
-### Entering Monthly Bills
-1. Go to **Bills** and select the property
-2. Enter the gas/electricity bill with its exact date range (e.g. 15 Sep – 14 Oct)
-3. Enter the council tax amount for the period
-4. The system automatically calculates each active tenant's fair share based on how many days they were present during that billing period
-5. Invoice line items are created automatically ready for the next invoice run
-
-### Generating Invoices
-1. Go to **Invoices** → **Generate Invoices**
-2. Select the property and the billing month
-3. Review each tenant's invoice — it will include rent, their bill shares, any one-off charges, and any outstanding balance carried forward
-4. Download the PDF for each tenant
-
-### Uploading Your Bank Statement
-1. Go to **Transactions** → **Import Bank Statement**
-2. Upload your CSV file downloaded from your bank
-3. The system will attempt to auto-match transactions to tenants using the transaction description
-4. Review and confirm matched payments, or manually assign unmatched ones
-5. Split payments (e.g. a tenant paying rent and bills in one transfer) can be divided and labelled
-
-### Recording Cash Payments
-1. Go to **Transactions** → **Add Manual Entry**
-2. Select the tenant, amount, type (rent/bill), and date
-3. This will appear in the ledger alongside bank-matched payments
-
-### Exporting for QuickFile
-1. Go to **Reports** → **QuickFile Export**
-2. Select the tax year period (April to April) and property
-3. Download the CSV file — it uses the same format as your bank statement with corrected descriptions ready to import into QuickFile
-
-### Compliance & Safety Certificates
-1. Go to **Compliance Dashboard**
-2. You will see all certificates and documents for each property (gas safety, electrical, EPC, insurance, tariffs, etc.)
-3. Click any record to upload a PDF, update the date, or set the next expiry date
-4. Approaching expiry dates are highlighted on your main dashboard
-
-### Managing Tasks
-1. Go to **Tasks** → **Add Task**
-2. Give it a title, priority level, and link it to a property, room, or tenant
-3. Tasks appear in your task list and can be marked complete at any time
+```
+app/
+├── auth/           # Login, logout, role decorators
+├── dashboard/      # Landlord home
+├── properties/     # Property & room CRUD
+├── tenants/        # Tenant profiles
+├── contracts/      # Contract management
+├── invoices/       # Invoices, rent roll, PDF generation
+├── deposits/       # Deposit records, settlement workflow
+├── tasks/          # Task management
+├── portal/         # Tenant self-service portal
+├── models.py       # SQLAlchemy models
+├── static/
+│   ├── css/main.css
+│   └── uploads/invoices/   # Generated PDFs
+└── templates/
+    ├── base.html   # Shared layout, nav, idle-logout JS
+    └── [blueprint]/
+```
 
 ---
 
-## Important notes
+## Setup
 
-- **Your data is private.** Each landlord user can only see their own properties and tenants.
-- **GDPR:** Tenant personal data is held lawfully under the terms of their tenancy contract and UK legal obligations (Right to Rent, council tax registration). Tenants can request to see their data at any time.
-- **Backups:** The database is stored as a single file (`app.db`) in the project folder. Copy this file regularly to keep a backup of all your data.
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+flask db upgrade
+python seed_admin.py
+flask run
+```
 
 ---
 
-## Getting help
+## Notes
 
-If something is not working, check the **Technical Development Log** document for known issues and recent changes. For any major problems, contact your developer.
+- `app/static/uploads/invoices/` accumulates generated PDFs — add to `.gitignore`
+- SQLite database file should also be in `.gitignore`
+- Tenant logins are created by the landlord (no self-registration)

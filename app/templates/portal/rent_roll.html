@@ -9,26 +9,38 @@
 
 {% if not row %}
 <div class="card" style="max-width:500px;">
-  <p class="text-muted">No active contract found. Contact your landlord.</p>
+  <p class="text-muted">No contract on record. Contact your landlord.</p>
 </div>
 {% else %}
+
+{# ── Closed contract notice ── #}
+{% if not row.is_active %}
+<div class="card" style="max-width:860px; margin-bottom:20px;
+     border-top-color:var(--grey-mid); font-size:14px; color:var(--text-secondary);">
+  &#9432; Your tenancy at <strong>{{ row.property.address_line1 }}</strong> ended on
+  <strong>{{ row.contract.end_date.strftime('%d %b %Y') if row.contract.end_date else 'an unrecorded date' }}</strong>.
+  Your full payment and charge history is shown below.
+  Contact your landlord with any queries.
+</div>
+{% endif %}
 
 {# ── Balance summary ── #}
 <div class="card-grid" style="margin-bottom:28px;">
 
   <div class="card" style="text-align:center;
-    border-top-color:{% if row.total_balance > 0 %}var(--error){% elif row.total_balance < 0 %}var(--green-primary){% else %}var(--green-primary){% endif %};">
+    border-top-color:{% if row.status == 'closed' %}var(--grey-mid){% elif row.total_balance > 0 %}var(--error){% else %}var(--green-primary){% endif %};">
     <div class="card-title">Total Balance</div>
     <div class="card-value" style="color:{% if row.total_balance > 0 %}var(--error){% else %}var(--green-dark){% endif %};">
       {% if row.total_balance < 0 %}CR {% endif %}£{{ "%.2f"|format(row.total_balance|abs) }}
     </div>
     <div class="card-sub">
       <span class="badge
-        {% if row.status == 'credit' %}badge-green
+        {% if row.status == 'closed' %}badge-grey
+        {% elif row.status == 'credit' %}badge-green
         {% elif row.status == 'overdue' %}badge-red
         {% elif row.status == 'outstanding' %}badge-yellow
         {% else %}badge-green{% endif %}">
-        {{ row.status|title }}
+        {% if row.status == 'closed' %}Tenancy Ended{% else %}{{ row.status|title }}{% endif %}
       </span>
     </div>
   </div>
@@ -53,7 +65,11 @@
     <div class="card-title">Monthly Rent</div>
     <div class="card-value" style="font-size:20px;">£{{ "%.2f"|format(row.monthly_rent) }}</div>
     <div class="card-sub">
-      Due {{ row.next_rent_due.strftime('%d %b %Y') if row.next_rent_due else '—' }}
+      {% if row.is_active %}
+        Due {{ row.next_rent_due.strftime('%d %b %Y') if row.next_rent_due else '—' }}
+      {% else %}
+        Contract ended
+      {% endif %}
     </div>
   </div>
 
@@ -61,7 +77,14 @@
 
 {# ── Property & room ── #}
 <div class="card" style="max-width:860px; margin-bottom:24px; font-size:14px;">
-  <div class="card-title">Tenancy</div>
+  <div class="card-title">
+    Tenancy
+    {% if not row.is_active %}
+    <span class="badge badge-grey" style="margin-left:8px; font-size:11px;">Ended</span>
+    {% else %}
+    <span class="badge badge-green" style="margin-left:8px; font-size:11px;">Active</span>
+    {% endif %}
+  </div>
   <table style="margin:0;">
     <tr>
       <td style="color:var(--text-secondary); width:150px; padding:5px 0; border:none;">Property</td>
@@ -79,6 +102,11 @@
       <td style="color:var(--text-secondary); padding:5px 0; border:none;">Contract End</td>
       <td style="padding:5px 0; border:none;">
         {{ row.contract.end_date.strftime('%d %b %Y') if row.contract.end_date else '—' }}
+        {% if row.contract.closure_type %}
+        <span class="text-muted" style="font-size:12px; margin-left:6px;">
+          ({{ 'Notice period' if row.contract.closure_type == 'notice' else 'Early surrender' }})
+        </span>
+        {% endif %}
       </td>
     </tr>
   </table>
@@ -114,7 +142,7 @@
   </tbody>
 </table>
 <p class="text-muted" style="font-size:13px; margin-top:12px;">
-  Showing last 20 transactions. Contact your landlord for older records.
+  Showing up to 50 most recent transactions. Contact your landlord for older records.
 </p>
 {% else %}
 <p class="text-muted">No transactions on record yet.</p>

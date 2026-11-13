@@ -28,21 +28,41 @@ def _tx_sum(tenant_id, credit_debit, types):
     return sum(Decimal(str(t.amount)) for t in rows)
 
 
-def build_rent_roll(user_id: int, property_id: int = None) -> list[dict]:
+def build_rent_roll(user_id: int, property_id: int = None,
+                    show_ended: bool = False) -> list[dict]:
+    """
+    show_ended=True  — also include tenants whose contract has ended but
+    who still have a non-zero balance (pending deposit settlement).
+    """
     tenants = Tenant.query.filter_by(
-        user_id=user_id, is_active=True
+        user_id=user_id
     ).order_by(Tenant.last_name).all()
 
     rows = []
     today = date.today()
 
     for tenant in tenants:
+        # Prefer active contract; fall back to most recent if show_ended
         contract = TenantContract.query.filter_by(
             tenant_id=tenant.id, is_active=True
         ).first()
+        contract_active = bool(contract)
+
         if not contract:
-            continue
+            if not show_ended:
+                continue
+            # Most recent ended contract
+            contract = TenantContract.query.filter_by(
+                tenant_id=tenant.id
+            ).order_by(TenantContract.start_date.desc()).first()
+            if not contract:
+                continue
+
         if property_id and contract.property_id != property_id:
+            continue
+
+        # For ended tenants, only include if balance is non-zero
+        if not contract_active and not show_ended:
             continue
 
         # ── Live balances from transactions ───────────────────────────
@@ -79,7 +99,9 @@ def build_rent_roll(user_id: int, property_id: int = None) -> list[dict]:
             days_overdue = (today - oldest_due).days
 
         # ── Status ────────────────────────────────────────────────────
-        if total_balance < Decimal('-0.01'):
+        if not contract_active:
+            status = 'ended'
+        elif total_balance < Decimal('-0.01'):
             status = 'credit'
         elif total_balance <= Decimal('0.01'):
             status = 'current'
@@ -100,10 +122,11 @@ def build_rent_roll(user_id: int, property_id: int = None) -> list[dict]:
         rows.append({
             'tenant':               tenant,
             'contract':             contract,
+            'contract_active':      contract_active,
             'property':             contract.property,
             'room':                 contract.room,
             'monthly_rent':         Decimal(str(contract.monthly_rent or 0)),
-            'next_rent_due':        contract.next_rent_due,
+            'next_rent_due':        contract.next_rent_due if contract_active else None,
             'rent_balance':         rent_balance,
             'bill_balance':         bill_balance,
             'total_balance':        total_balance,
@@ -115,7 +138,7 @@ def build_rent_roll(user_id: int, property_id: int = None) -> list[dict]:
             'status':               status,
         })
 
-    status_order = {'overdue': 0, 'outstanding': 1, 'current': 2, 'credit': 3}
+    status_order = {'overdue': 0, 'outstanding': 1, 'current': 2, 'credit': 3, 'ended': 4}
     rows.sort(key=lambda r: (
         status_order.get(r['status'], 99),
         r['property'].address_line1,

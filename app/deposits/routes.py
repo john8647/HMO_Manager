@@ -7,7 +7,8 @@ from decimal import Decimal
 import os
 from werkzeug.utils import secure_filename
 from app import db
-from app.models import Deposit, Tenant, TenantContract
+from app.models import Deposit, Tenant, TenantContract, Transaction
+from decimal import Decimal as _D
 
 deposits_bp = Blueprint('deposits', __name__)
 
@@ -420,6 +421,107 @@ def edit(deposit_id):
                            contracts=contracts,
                            dps_companies=DPS_COMPANIES,
                            statuses=STATUSES)
+
+
+# ── Deposit settlement ───────────────────────────────────────────────────────
+
+def _live_balance(tenant_id):
+    """Return (rent_balance, bill_balance, total_balance) from raw transactions."""
+    def tx_sum(cd, types):
+        rows = Transaction.query.filter(
+            Transaction.tenant_id    == tenant_id,
+            Transaction.credit_debit == cd,
+            Transaction.type.in_(types),
+        ).all()
+        return sum(_D(str(r.amount)) for r in rows)
+
+    rent_db  = tx_sum('db', ['Rent', 'Advanced Rent'])
+    rent_cr  = tx_sum('cr', ['Rent', 'Advanced Rent'])
+    bills_db = tx_sum('db', ['Bills'])
+    bills_cr = tx_sum('cr', ['Bills'])
+    rent_bal  = rent_db  - rent_cr
+    bill_bal  = bills_db - bills_cr
+    return rent_bal, bill_bal, rent_bal + bill_bal
+
+
+@deposits_bp.route('/<int:deposit_id>/settle', methods=['GET', 'POST'])
+@login_required
+@landlord_required
+def settle(deposit_id):
+    deposit  = get_deposit_or_404(deposit_id)
+    tenant   = deposit.tenant
+    contract = TenantContract.query.filter_by(
+        id=deposit.contract_id
+    ).first() if deposit.contract_id else TenantContract.query.filter_by(
+        tenant_id=tenant.id
+    ).order_by(TenantContract.start_date.desc()).first()
+
+    rent_bal, bill_bal, total_bal = _live_balance(tenant.id)
+
+    # Suggested deduction = amount owed (positive balance = tenant owes money)
+    suggested_deduction = max(total_bal, _D('0.00'))
+    suggested_returned  = max(_D(str(deposit.amount)) - suggested_deduction, _D('0.00'))
+
+    # Build default deduction reason from closure type
+    if contract and contract.closure_type == 'surrender':
+        default_reason = (
+            f'Early surrender accepted'
+            + (f' — vacated {contract.surrender_date.strftime("%d %b %Y")}' if contract.surrender_date else '')
+            + f'. Rent balance: £{rent_bal:.2f}. Bills balance: £{bill_bal:.2f}.'
+        )
+    elif contract and contract.closure_type == 'notice':
+        default_reason = (
+            f'Notice period ended'
+            + (f' {contract.notice_end_date.strftime("%d %b %Y")}' if contract.notice_end_date else '')
+            + f'. Rent balance: £{rent_bal:.2f}. Bills balance: £{bill_bal:.2f}.'
+        )
+    else:
+        default_reason = (
+            f'Contract ended. Rent balance: £{rent_bal:.2f}. '
+            f'Bills balance: £{bill_bal:.2f}.'
+        )
+
+    if request.method == 'POST':
+        deduction_amount = _D(request.form.get('deduction_amount', '0') or '0')
+        deduction_reason = request.form.get('deduction_reason', '').strip()
+        amount_returned  = _D(request.form.get('amount_returned',  '0') or '0')
+        new_status       = request.form.get('status', 'deducting')
+        returned_date_s  = request.form.get('returned_date', '').strip()
+
+        deposit.deduction_amount = deduction_amount
+        deposit.deduction_reason = deduction_reason
+        deposit.amount_returned  = amount_returned
+        deposit.status           = new_status
+
+        if returned_date_s:
+            try:
+                deposit.returned_date = datetime.strptime(returned_date_s, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+        elif new_status in ('paid', 'returned'):
+            deposit.returned_date = date.today()
+
+        db.session.commit()
+        flash(
+            f'Deposit settlement saved — status set to {new_status.title()}.',
+            'success'
+        )
+        return redirect(url_for('deposits.view', deposit_id=deposit.id))
+
+    return render_template(
+        'deposits/settle.html',
+        deposit=deposit,
+        tenant=tenant,
+        contract=contract,
+        rent_bal=rent_bal,
+        bill_bal=bill_bal,
+        total_bal=total_bal,
+        suggested_deduction=suggested_deduction,
+        suggested_returned=suggested_returned,
+        default_reason=default_reason,
+        today=date.today(),
+        statuses=STATUSES,
+    )
 
 
 # ── PDF certificate ───────────────────────────────────────────────────────────

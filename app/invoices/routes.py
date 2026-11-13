@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, Response
+from flask import Blueprint, render_template, redirect, url_for, flash, request, Response, send_file
+import os
 from flask_login import login_required, current_user
 from app.utils import landlord_required
 from datetime import datetime, date
@@ -409,30 +410,59 @@ def delete(invoice_id):
     return redirect(url_for('invoices.index'))
 
 
-@invoices_bp.route('/<int:invoice_id>/pdf')
-@login_required
-@landlord_required
-def pdf(invoice_id):
-    invoice  = get_invoice_or_404(invoice_id)
+PDF_FOLDER = os.path.join('app', 'static', 'uploads', 'invoices')
+
+
+def _generate_invoice_pdf(invoice):
+    """
+    Render and return (bytes, filename) for the given invoice.
+    Also saves the file to PDF_FOLDER and updates invoice.pdf_path.
+    Returns (pdf_bytes, filename) or raises on failure.
+    """
+    import io
+    from xhtml2pdf import pisa
+
     items    = invoice.items.all()
     landlord = User.query.get(invoice.user_id)
     html = render_template('invoices/pdf_template.html',
                            invoice=invoice, items=items, landlord=landlord)
+
+    buf = io.BytesIO()
+    pisa.CreatePDF(html, dest=buf)
+    buf.seek(0)
+    pdf_bytes = buf.read()
+
+    # Persist to disk so the tenant portal can serve it later
     try:
-        import io
-        from xhtml2pdf import pisa
-        pdf_buffer = io.BytesIO()
-        pisa.CreatePDF(html, dest=pdf_buffer)
-        pdf_buffer.seek(0)
+        os.makedirs(PDF_FOLDER, exist_ok=True)
+        filename = f'invoice_{invoice.invoice_number}.pdf'
+        filepath = os.path.join(PDF_FOLDER, filename)
+        with open(filepath, 'wb') as fh:
+            fh.write(pdf_bytes)
+        invoice.pdf_path = filename
+        from app import db as _db
+        _db.session.commit()
+    except Exception:
+        pass  # saving to disk is best-effort; never block download
+
+    return pdf_bytes, f'{invoice.invoice_number}.pdf'
+
+
+@invoices_bp.route('/<int:invoice_id>/pdf')
+@login_required
+@landlord_required
+def pdf(invoice_id):
+    invoice = get_invoice_or_404(invoice_id)
+    try:
+        pdf_bytes, filename = _generate_invoice_pdf(invoice)
         return Response(
-            pdf_buffer.read(),
+            pdf_bytes,
             mimetype='application/pdf',
-            headers={'Content-Disposition':
-                     f'attachment; filename={invoice.invoice_number}.pdf'}
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
         )
     except Exception as e:
         flash(f'PDF generation failed: {e}', 'error')
-        return redirect(url_for('invoices.view', invoice_id=invoice.id))
+        return redirect(url_for('invoices.view', invoice_id=invoice_id))
 
 
 # ── Rent Roll ─────────────────────────────────────────────────────────────────
@@ -451,18 +481,27 @@ def rent_roll():
             user_id=current_user.id
         ).order_by(Prop.address_line1).all()
 
-    property_id = request.args.get('property_id', type=int)
-    rows        = build_rent_roll(current_user.id, property_id=property_id)
+    property_id  = request.args.get('property_id', type=int)
+    show_ended   = request.args.get('show_ended') == '1'
+    rows         = build_rent_roll(current_user.id, property_id=property_id,
+                                   show_ended=show_ended)
 
-    total_outstanding = sum(r['total_outstanding'] for r in rows)
-    total_rent_bal    = sum(r['rent_balance']       for r in rows)
-    total_bill_bal    = sum(r['bill_balance']        for r in rows)
-    total_balance     = sum(r['total_balance']       for r in rows)
-    total_rent_roll   = sum(r['monthly_rent']        for r in rows)
+    # Totals over active rows only (ended tenants tracked separately)
+    active_rows = [r for r in rows if r['contract_active']]
+    ended_rows  = [r for r in rows if not r['contract_active']]
+
+    total_outstanding = sum(r['total_outstanding'] for r in active_rows)
+    total_rent_bal    = sum(r['rent_balance']       for r in active_rows)
+    total_bill_bal    = sum(r['bill_balance']        for r in active_rows)
+    total_balance     = sum(r['total_balance']       for r in active_rows)
+    total_rent_roll   = sum(r['monthly_rent']        for r in active_rows)
 
     return render_template(
         'invoices/rent_roll.html',
         rows=rows,
+        active_rows=active_rows,
+        ended_rows=ended_rows,
+        show_ended=show_ended,
         properties=properties,
         selected_property_id=property_id,
         total_outstanding=total_outstanding,

@@ -6,7 +6,8 @@ from datetime import date, datetime
 import os
 from werkzeug.utils import secure_filename
 from app import db
-from app.models import Tenant, TenantContract, Property, Room, Task
+from app.models import Tenant, TenantContract, Property, Room, Task, Transaction
+from decimal import Decimal
 
 CONTRACT_UPLOAD_FOLDER = 'app/static/uploads/contracts'
 CONTRACT_ALLOWED_EXT   = {'pdf', 'jpg', 'jpeg', 'png'}
@@ -468,6 +469,7 @@ def edit_contract(tenant_id, contract_id):
     ).first_or_404()
 
     if request.method == 'POST':
+        action        = request.form.get('action', 'save')   # 'save' | 'close'
         renewal_str   = request.form.get('renewal_date', '').strip()
         end_date_str  = request.form.get('end_date', '').strip()
         uploaded_file = request.files.get('contract_file')
@@ -489,7 +491,6 @@ def edit_contract(tenant_id, contract_id):
         # Replace document if a new one was uploaded
         new_file = _save_contract_file(uploaded_file, tenant.id)
         if new_file:
-            # Remove old file if it exists
             if contract.contract_file_path:
                 old = os.path.join(CONTRACT_UPLOAD_FOLDER,
                                    contract.contract_file_path)
@@ -497,7 +498,80 @@ def edit_contract(tenant_id, contract_id):
                     os.remove(old)
             contract.contract_file_path = new_file
 
-        # Sync / create tasks for the new dates
+        # ── Contract Closure ─────────────────────────────────────────────
+        if action == 'close':
+            closure_type   = request.form.get('closure_type', '').strip()
+            notice_str     = request.form.get('notice_end_date', '').strip()
+            surrender_str  = request.form.get('surrender_date', '').strip()
+            closure_notes  = request.form.get('closure_notes', '').strip()
+
+            if closure_type not in ('notice', 'surrender'):
+                flash('Please select a closure type (Notice or Surrender).', 'error')
+                return render_template('tenants/edit_contract.html',
+                                       tenant=tenant, contract=contract)
+
+            try:
+                if closure_type == 'notice':
+                    if not notice_str:
+                        flash('Notice End Date is required.', 'error')
+                        return render_template('tenants/edit_contract.html',
+                                               tenant=tenant, contract=contract)
+                    true_end = datetime.strptime(notice_str, '%Y-%m-%d').date()
+                    contract.notice_end_date = true_end
+                else:  # surrender
+                    if not surrender_str:
+                        flash('Surrender Date is required.', 'error')
+                        return render_template('tenants/edit_contract.html',
+                                               tenant=tenant, contract=contract)
+                    true_end = datetime.strptime(surrender_str, '%Y-%m-%d').date()
+                    contract.surrender_date = true_end
+            except ValueError:
+                flash('Invalid closure date.', 'error')
+                return render_template('tenants/edit_contract.html',
+                                       tenant=tenant, contract=contract)
+
+            contract.closure_type  = closure_type
+            contract.closure_notes = closure_notes
+            contract.end_date      = true_end   # canonical end date
+            contract.is_active     = False
+
+            # Mark room as vacant
+            room = Room.query.get(contract.room_id)
+            if room:
+                room.is_occupied = False
+
+            # ── Zero out future rent debits beyond true_end ───────────────
+            # These are system-generated charges for periods that will not now
+            # be served.  Setting amount to 0 keeps the audit trail but removes
+            # the financial liability.  A note records why.
+            future_debits = Transaction.query.filter(
+                Transaction.tenant_id   == tenant.id,
+                Transaction.credit_debit == 'db',
+                Transaction.type         == 'Rent',
+                Transaction.transaction_date > true_end,
+            ).all()
+
+            zeroed = 0
+            for tx in future_debits:
+                if tx.amount and Decimal(str(tx.amount)) > 0:
+                    tx.amount = Decimal('0.00')
+                    tx.notes  = (
+                        f'Zeroed on contract closure ({closure_type}) — '
+                        f'true end {true_end.strftime("%d %b %Y")}. '
+                        + (tx.notes or '')
+                    )
+                    zeroed += 1
+
+            db.session.commit()
+
+            msg = f'Contract closed ({closure_type}). True end date: {true_end.strftime("%d %b %Y")}.'
+            if zeroed:
+                msg += f' {zeroed} future charge(s) set to £0.'
+            flash(msg, 'success')
+            return redirect(url_for('tenants.view', tenant_id=tenant.id))
+        # ── End Contract Closure ─────────────────────────────────────────
+
+        # Regular save
         _ensure_contract_tasks(contract, tenant, current_user.id)
         db.session.commit()
         flash('Contract updated.', 'success')

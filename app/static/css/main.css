@@ -340,6 +340,7 @@ textarea:focus {
 .badge-red    { background: #fde8e4; color: var(--error); }
 .badge-grey   { background: var(--grey-light); color: var(--grey-dark); }
 .badge-yellow { background: #fff7bf; color: #594d00; }
+.badge-blue   { background: #ddeeff; color: #1a5a99; }
 
 /* ---- Alerts / Flash messages ---- */
 .flash-messages {
