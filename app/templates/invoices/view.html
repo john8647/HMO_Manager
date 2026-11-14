@@ -5,8 +5,10 @@
 <div class="flex-between mb-2">
     <h1>{{ invoice.invoice_number }}</h1>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        {% if invoice.status != 'cancelled' %}
         <a href="{{ url_for('invoices.pdf', invoice_id=invoice.id) }}"
            class="btn btn-primary">&#8595; Download PDF</a>
+        {% endif %}
         <a href="{{ url_for('invoices.index') }}"
            class="btn btn-secondary">&larr; All Invoices</a>
     </div>
@@ -24,12 +26,16 @@
         <span class="badge badge-red" style="font-size:14px; padding:4px 14px;">Overdue</span>
     {% elif invoice.status == 'issued' %}
         <span class="badge badge-blue" style="font-size:14px; padding:4px 14px;">Issued</span>
+    {% elif invoice.status == 'cancelled' %}
+        <span class="badge badge-cancelled" style="font-size:14px; padding:4px 14px;">&#10060; Cancelled</span>
     {% else %}
         <span class="badge badge-grey" style="font-size:14px; padding:4px 14px;">Draft</span>
     {% endif %}
 
     <!-- Outstanding amount -->
-    {% if outstanding > 0 and invoice.status != 'draft' %}
+    {% if invoice.status == 'cancelled' %}
+        {# No outstanding shown for cancelled invoices #}
+    {% elif outstanding > 0 and invoice.status != 'draft' %}
     <span style="font-size:14px; color:var(--error); font-weight:600;">
         Outstanding: £{{ '%.2f'|format(outstanding) }}
     </span>
@@ -39,6 +45,7 @@
     </span>
     {% endif %}
 
+    {% if invoice.status != 'cancelled' %}
     <form method="POST"
           action="{{ url_for('invoices.update_status', invoice_id=invoice.id) }}"
           style="display:flex; gap:8px; align-items:center;">
@@ -58,7 +65,25 @@
         </select>
         <button type="submit" class="btn btn-secondary btn-sm">Update Status</button>
     </form>
+    {% endif %}{# /not cancelled #}
 </div>
+
+{# ── Cancelled notice banner ── #}
+{% if invoice.status == 'cancelled' %}
+<div style="margin-bottom:24px; padding:16px 20px; background:#3d0000;
+            border-radius:6px; color:#ffcccc; max-width:720px;">
+  <strong style="font-size:15px;">&#10060; This invoice has been cancelled.</strong>
+  <p style="margin:6px 0 0; font-size:13px; color:#ffaaaa;">
+    The charge has been reversed on the tenant's account.
+    {% if invoice.amount_paid and invoice.amount_paid > 0 %}
+    <br>The tenant paid <strong>£{{ '%.2f'|format(invoice.amount_paid) }}</strong> against this invoice —
+    their account now shows a <strong>credit of £{{ '%.2f'|format(invoice.amount_paid) }}</strong>
+    which will offset their next invoice or can be refunded directly.
+    {% endif %}
+    Issue a corrected invoice to replace this one.
+  </p>
+</div>
+{% endif %}
 
 <!-- Header info -->
 <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:28px;">
@@ -199,12 +224,48 @@
 </div>
 {% endif %}
 
-<!-- Delete -->
-<div style="margin-top:40px; border-top:1px solid var(--border); padding-top:20px;">
+<!-- Cancel / Delete -->
+<div style="margin-top:40px; border-top:1px solid var(--border); padding-top:20px;
+            display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+
+    {% if invoice.status == 'draft' %}
+    {# Draft — only delete makes sense #}
     <form method="POST"
           action="{{ url_for('invoices.delete', invoice_id=invoice.id) }}"
-          onsubmit="return confirm('Delete invoice {{ invoice.invoice_number }}?');">
-        <button type="submit" class="btn btn-danger btn-sm">Delete Invoice</button>
+          onsubmit="return confirm('Delete draft invoice {{ invoice.invoice_number }}? This cannot be undone.');">
+        <button type="submit" class="btn btn-danger btn-sm">Delete Draft</button>
     </form>
+
+    {% elif invoice.status == 'cancelled' %}
+    {# Already cancelled — offer hard delete for cleanup only #}
+    <form method="POST"
+          action="{{ url_for('invoices.delete', invoice_id=invoice.id) }}"
+          onsubmit="return confirm('Permanently delete cancelled invoice {{ invoice.invoice_number }}? The audit record will be lost.');">
+        <button type="submit" class="btn btn-danger btn-sm"
+                style="opacity:0.6;">Delete Record</button>
+    </form>
+
+    {% else %}
+    {# Issued / paid / part-paid / overdue — cancel is the right action #}
+    <form method="POST"
+          action="{{ url_for('invoices.cancel', invoice_id=invoice.id) }}"
+          onsubmit="return confirm(
+            'Cancel invoice {{ invoice.invoice_number }}?\n\n' +
+            'This will:\n' +
+            '• Mark the invoice Cancelled\n' +
+            '• Reverse the debit transaction on the tenant account\n' +
+            '• Release bill lines for re-invoicing\n\n' +
+            'If the tenant already paid, their account will show a credit.\n\n' +
+            'This cannot be undone. Continue?');">
+        <button type="submit" class="btn btn-danger btn-sm">
+            &#10060; Cancel Invoice
+        </button>
+    </form>
+    <span style="font-size:12px; color:var(--text-secondary); align-self:center;">
+        Cancelling reverses the charge and keeps an audit record.
+        Issue a corrected invoice afterwards.
+    </span>
+    {% endif %}
+
 </div>
 {% endblock %}

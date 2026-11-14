@@ -40,13 +40,15 @@ def quickfile_export():
     sort_code      = request.args.get('sort_code', '').strip()
     account_num    = request.args.get('account_number', '').strip()
 
-    if not property_id or not tax_year:
-        flash('Please select a property and tax year.', 'error')
+    if not tax_year:
+        flash('Please select a tax year.', 'error')
         return redirect(url_for('reports.index'))
 
-    prop = Property.query.filter_by(
-        id=int(property_id), user_id=current_user.id
-    ).first_or_404()
+    prop = None
+    if property_id:
+        prop = Property.query.filter_by(
+            id=int(property_id), user_id=current_user.id
+        ).first_or_404()
 
     period_start, period_end = get_tax_year_dates(tax_year)
 
@@ -60,12 +62,22 @@ def quickfile_export():
         Transaction.is_matched == True,
     ).order_by(Transaction.transaction_date).all()
 
-    # ── Debits: expenses for this property only ──────────────────────────
-    expenses = Expense.query.filter(
+    # ── Debits: expenses filtered by property if one was selected ────────
+    # No property selected → include all expenses for this user.
+    # Property selected → that property + unassigned general expenses.
+    from sqlalchemy import or_
+    expense_filters = [
         Expense.user_id == current_user.id,
-        Expense.property_id == int(property_id),
         Expense.expense_date >= period_start,
         Expense.expense_date <= period_end,
+    ]
+    if property_id:
+        expense_filters.append(or_(
+            Expense.property_id == int(property_id),
+            Expense.property_id.is_(None),
+        ))
+    expenses = Expense.query.filter(
+        *expense_filters
     ).order_by(Expense.expense_date).all()
 
     csv_content = build_quickfile_csv(
@@ -79,14 +91,17 @@ def quickfile_export():
     )
 
     # Append any retained deposit rows (genuine income)
-    deposit_rows = build_retained_deposit_rows(
-        user_id=current_user.id,
-        property_id=int(property_id),
-        period_start=period_start,
-        period_end=period_end,
-        sort_code=sort_code,
-        account_number=account_num,
-    )
+    # Only available when a specific property is selected
+    deposit_rows = []
+    if property_id:
+        deposit_rows = build_retained_deposit_rows(
+            user_id=current_user.id,
+            property_id=int(property_id),
+            period_start=period_start,
+            period_end=period_end,
+            sort_code=sort_code,
+            account_number=account_num,
+        )
 
     if deposit_rows:
         import csv as csv_mod
@@ -105,10 +120,8 @@ def quickfile_export():
             ])
         csv_content = csv_content.rstrip('\r\n') + '\r\n' + extra.getvalue()
 
-    filename = (
-        f'QuickFile_{prop.property_ref or prop.id}'
-        f'_TaxYear{tax_year-1}-{tax_year}.csv'
-    )
+    prop_label = (prop.property_ref or str(prop.id)) if prop else 'All'
+    filename = f'QuickFile_{prop_label}_TaxYear{tax_year-1}-{tax_year}.csv'
 
     return Response(
         csv_content,

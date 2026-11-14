@@ -2,7 +2,6 @@
 QuickFile CSV Exporter
 ======================
 Produces a CSV in the same format as the bank statement export,
-with corrected/mapped descriptions, broken down per property,
 filtered by UK tax year (6 April to 5 April).
 
 Format matches QuickFile manual import:
@@ -12,20 +11,22 @@ Transaction Description, Debit Amount, Credit Amount
 INCLUSION RULES
 ---------------
 INCLUDE as Credits (income):
-  - Rent payments received (type='Rent', credit_debit='cr', source='bank_import')
-  - Bill share payments received (type='Gas/Electric' etc, cr, bank_import)
-  - Deposit retained deductions (where deposit.deduction_amount > 0 or status='withdrawn')
+  - All matched credit transactions (tenant rent, bills, manual cash)
+  - Deposit retained deductions (where deposit.deduction_amount > 0)
 
-INCLUDE as Debits (expenses):
-  - Expenses recorded against this property
-  - Manual debit transactions that originated from real payments (source != 'system')
+INCLUDE as Debits (outgoings):
+  - Bank import debit transactions with NO tenant (tenant_id IS NULL)
+    — these are real bank movements: direct debits, standing orders etc.
+    — description and type carried through unchanged from the import
+  - Expense table rows with source='bank' or source='cash'
 
 EXCLUDE:
-  - Rent debit charges (type='Rent', credit_debit='db') — internal accounting only
-  - Advanced Rent debit offsets (type='Advanced Rent', credit_debit='db') — internal
+  - Debit transactions linked to a tenant (tenant_id IS NOT NULL)
+    — these are internal charges passed to the tenant (rent, bills)
+    — they are not money the landlord paid out
   - System-generated transactions (source='system')
   - Deposit credits (type='Deposit') — not income until retained
-  - Unmatched transactions
+  - Bill-share calculation entries (expense source='manual')
 """
 
 import csv
@@ -43,9 +44,6 @@ HEADERS = [
     'Debit Amount',
     'Credit Amount',
 ]
-
-# Transaction types that are internal accounting only — never export
-INTERNAL_DEBIT_TYPES = {'Rent', 'Advanced Rent'}
 
 # Transaction types that are not income until a deposit is retained
 DEPOSIT_TYPES = {'Deposit'}
@@ -91,8 +89,8 @@ def build_quickfile_csv(transactions, expenses, prop,
         if t.type in DEPOSIT_TYPES:
             continue
 
-        # Only include matched bank import transactions
-        # (manual cash entries are included too — source='manual' or 'cash')
+        # Description: notes already contains "{bank_pattern} {type}" from
+        # the matcher (e.g. "JIJIN JOSE Rent"). Fall back to type, then generic.
         description = (t.notes or t.type or 'Payment').strip()
 
         rows.append({
@@ -105,46 +103,46 @@ def build_quickfile_csv(transactions, expenses, prop,
             'credit':      f'{t.amount:.2f}',
         })
 
-    # ── Debit rows (expenses paid out) ───────────────────────────────────
-    # From Expense table — these are real payments
-    for e in expenses:
-        description = e.description or 'Expense'
-        rows.append({
-            'date':        e.expense_date,
-            'type':        'DD' if e.source == 'bank' else 'TRF',
-            'sort_code':   sc,
-            'account':     an,
-            'description': description,
-            'debit':       f'{e.amount:.2f}',
-            'credit':      '',
-        })
-
-    # Debit transactions NOT from expenses and NOT internal accounting
+    # ── Debit rows from bank import (no tenant) ──────────────────────────
+    # Real bank outgoings: direct debits, standing orders, fees etc.
+    # Only include where tenant_id is None — debit transactions linked to
+    # a tenant are internal charges (rent/bills) passed to them, not money
+    # the landlord actually paid out.
     for t in transactions:
         if t.credit_debit != 'db':
             continue
-
-        # Exclude ALL internal rent/advanced rent charges
-        if t.type in INTERNAL_DEBIT_TYPES:
+        if t.tenant_id is not None:
             continue
-
-        # Exclude system-generated entries
         if t.source == 'system':
             continue
-
-        # Exclude if this debit came from an expense record
-        # (already captured above from the Expense table)
-        if t.expense_id:
-            continue
-
         description = (t.notes or t.type or 'Payment').strip()
         rows.append({
             'date':        t.transaction_date,
-            'type':        'DD',
+            'type':        'FPI',
             'sort_code':   sc,
             'account':     an,
             'description': description,
             'debit':       f'{t.amount:.2f}',
+            'credit':      '',
+        })
+
+    # ── Debit rows from Expense table ────────────────────────────────────
+    # Manually recorded expenses with a real cash movement:
+    #   source='bank'  → direct debit / standing order entered manually
+    #   source='cash'  → cash payment made in hand
+    # Exclude source='manual' — bill-share calculation entries only,
+    # never appeared as a movement on the landlord's bank account.
+    for e in expenses:
+        if e.source not in ('bank', 'cash'):
+            continue
+        description = e.description or 'Expense'
+        rows.append({
+            'date':        e.expense_date,
+            'type':        'FPI',
+            'sort_code':   sc,
+            'account':     an,
+            'description': description,
+            'debit':       f'{e.amount:.2f}',
             'credit':      '',
         })
 
@@ -211,7 +209,7 @@ def build_retained_deposit_rows(user_id: int, property_id: int,
 
         rows.append({
             'date':        ref_date,
-            'type':        'TRF',
+            'type':        'FPI',
             'sort_code':   sc,
             'account':     account_number,
             'description': description,

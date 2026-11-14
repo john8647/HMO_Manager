@@ -114,18 +114,27 @@ def revert_tenant_balances_on_delete(invoice):
 @login_required
 @landlord_required
 def index():
-    if current_user.role == 'admin':
-        invoices = Invoice.query.order_by(Invoice.issue_date.desc()).limit(100).all()
-    else:
-        invoices = Invoice.query.filter_by(
-            user_id=current_user.id
-        ).order_by(Invoice.issue_date.desc()).limit(100).all()
+    show_cancelled = request.args.get('show_cancelled', '0') == '1'
+    base_q = Invoice.query if current_user.role == 'admin' else \
+             Invoice.query.filter_by(user_id=current_user.id)
+
+    if not show_cancelled:
+        base_q = base_q.filter(Invoice.status != 'cancelled')
+
+    invoices   = base_q.order_by(Invoice.issue_date.desc()).limit(200).all()
+    cancelled_count = (
+        Invoice.query if current_user.role == 'admin' else
+        Invoice.query.filter_by(user_id=current_user.id)
+    ).filter_by(status='cancelled').count()
+
     for inv in invoices:
         inv.outstanding = (
             Decimal(str(inv.total_due or 0)) -
             Decimal(str(inv.amount_paid or 0))
         )
-    return render_template('invoices/index.html', invoices=invoices)
+    return render_template('invoices/index.html', invoices=invoices,
+                           show_cancelled=show_cancelled,
+                           cancelled_count=cancelled_count)
 
 
 @invoices_bp.route('/generate', methods=['GET', 'POST'])
@@ -327,6 +336,10 @@ def update_status(invoice_id):
     new_status = request.form.get('status', '').strip()
     old_status = invoice.status
 
+    if invoice.status == 'cancelled':
+        flash('Cancelled invoices cannot be reactivated. Issue a new invoice instead.', 'error')
+        return redirect(url_for('invoices.view', invoice_id=invoice.id))
+
     if new_status not in ('draft', 'issued', 'partially_paid', 'paid', 'overdue'):
         flash('Invalid status.', 'error')
         return redirect(url_for('invoices.view', invoice_id=invoice.id))
@@ -408,6 +421,72 @@ def delete(invoice_id):
     db.session.commit()
     flash('Invoice deleted. Bill shares released for re-invoicing.', 'success')
     return redirect(url_for('invoices.index'))
+
+
+@invoices_bp.route('/<int:invoice_id>/cancel', methods=['POST'])
+@login_required
+@landlord_required
+def cancel(invoice_id):
+    """
+    Cancel an issued invoice:
+    - Sets status to 'cancelled' (keeps audit trail)
+    - Deletes the linked debit Transaction(s) so the balance reverts
+      (if the tenant already paid, their balance goes into credit — correct)
+    - Releases BillTenantShare links so lines can be re-invoiced
+    - Does NOT delete InvoicePayment records — history stays readable
+    """
+    from app.models import Transaction as Tx
+    invoice = get_invoice_or_404(invoice_id)
+
+    if invoice.status == 'cancelled':
+        flash('Invoice is already cancelled.', 'error')
+        return redirect(url_for('invoices.view', invoice_id=invoice.id))
+
+    if invoice.status == 'draft':
+        flash('Use Delete to remove a draft invoice.', 'error')
+        return redirect(url_for('invoices.view', invoice_id=invoice.id))
+
+    # --- Reverse the debit transaction(s) linked to this invoice ---
+    debit_txns = Tx.query.filter_by(
+        invoice_id=invoice.id,
+        credit_debit='db',
+    ).all()
+
+    tenant = Tenant.query.get(invoice.tenant_id)
+    rent_charge = PicklistCharge.query.filter_by(charge_name='Rent').first()
+
+    for txn in debit_txns:
+        amt = Decimal(str(txn.amount))
+        if tenant:
+            if txn.type == 'Bills':
+                tenant.bill_balance = Decimal(str(tenant.bill_balance or 0)) - amt
+            elif txn.type in ('Rent', 'rent') or (
+                rent_charge and txn.charge_type_id == rent_charge.id
+            ):
+                tenant.rent_balance = Decimal(str(tenant.rent_balance or 0)) - amt
+            else:
+                # Unknown type — reduce bill balance as safest default
+                tenant.bill_balance = Decimal(str(tenant.bill_balance or 0)) - amt
+        db.session.delete(txn)
+
+    # --- Release bill shares so lines can be re-invoiced ---
+    for item in invoice.items.all():
+        if item.bill_id:
+            share = BillTenantShare.query.filter_by(invoice_item_id=item.id).first()
+            if share:
+                share.invoice_item_id = None
+
+    # --- Mark cancelled (keep record + payment history intact) ---
+    invoice.status = 'cancelled'
+    db.session.commit()
+
+    flash(
+        f'Invoice {invoice.invoice_number} has been cancelled. '
+        'Any debit transactions have been reversed. '
+        'If the tenant already paid, their account will show a credit balance.',
+        'success'
+    )
+    return redirect(url_for('invoices.view', invoice_id=invoice.id))
 
 
 PDF_FOLDER = os.path.join('app', 'static', 'uploads', 'invoices')

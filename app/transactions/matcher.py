@@ -40,8 +40,8 @@ def auto_match_payment(
     payment_amount: Decimal,
     payment_date: date,
     user_id: int,
-    bank_import_id: int,
     preferred_description: str,
+    bank_import_id: int = None,
     transaction_type: str = 'FPI',
 ) -> dict:
     remaining   = Decimal(str(payment_amount))
@@ -58,7 +58,7 @@ def auto_match_payment(
             user_id=user_id,
             type=type_,
             month_year_period=payment_date.strftime('%B %Y'),
-            source='bank_import',
+            source='manual' if bank_import_id is None else 'bank_import',
             bank_import_id=bank_import_id,
             is_matched=True,
             notes=notes,

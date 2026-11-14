@@ -46,10 +46,8 @@ def index():
     # Group by HMRC category for summary
     by_category = {}
     for e in expenses:
-        cat = e.charge_type.hmrc_category if e.charge_type else 'Uncategorised'
         name = e.charge_type.charge_name if e.charge_type else 'Uncategorised'
-        key = name
-        by_category[key] = by_category.get(key, Decimal('0')) + Decimal(str(e.amount))
+        by_category[name] = by_category.get(name, Decimal('0')) + Decimal(str(e.amount))
 
     return render_template('expenses/index.html',
                            expenses=expenses,

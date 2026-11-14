@@ -314,6 +314,8 @@ class Expense(db.Model):
     receipt_path = db.Column(db.String(300))
     notes = db.Column(db.Text)
 
+    charge_type = db.relationship('PicklistCharge', foreign_keys=[charge_type_id])
+
 
 class PicklistCharge(db.Model):
     __tablename__ = 'picklist_charges'

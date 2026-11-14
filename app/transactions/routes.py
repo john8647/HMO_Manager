@@ -47,32 +47,39 @@ def add():
             user_id=current_user.id
         ).order_by(Tenant.last_name).all()
 
-    charge_types = PicklistCharge.query.order_by(PicklistCharge.charge_name).all()
+    # No-tenant income types only — charges against tenants come via invoices
+    no_tenant_types = [
+        ('Other Income',    'Other income not linked to a tenant'),
+        ('Refund',          'Refund received from a supplier'),
+        ('Sale of Asset',   'Sale of a property asset or item'),
+    ]
 
     if request.method == 'POST':
-        tenant_id      = request.form.get('tenant_id') or None
-        amount_str     = request.form.get('amount', '').strip()
-        credit_debit   = request.form.get('credit_debit', 'cr')
-        date_str       = request.form.get('transaction_date', '').strip()
-        type_          = request.form.get('type', '').strip()
-        charge_type_id = request.form.get('charge_type_id') or None
-        notes          = request.form.get('notes', '').strip()
-        source         = request.form.get('source', 'manual')
+        tenant_id  = request.form.get('tenant_id') or None
+        amount_str = request.form.get('amount', '').strip()
+        date_str   = request.form.get('transaction_date', '').strip()
+        notes      = request.form.get('notes', '').strip()
+        source     = request.form.get('source', 'manual')
 
         errors = []
         if not amount_str:
             errors.append('Amount is required.')
         if not date_str:
             errors.append('Date is required.')
-        if not type_:
-            errors.append('Transaction type is required.')
+
+        if not tenant_id:
+            type_ = request.form.get('type', '').strip()
+            if not type_:
+                errors.append('Income type is required when no tenant is selected.')
+        else:
+            type_ = None  # payment engine assigns type
 
         if errors:
             for e in errors:
                 flash(e, 'error')
             return render_template('transactions/add.html',
                                    tenants=tenants,
-                                   charge_types=charge_types)
+                                   no_tenant_types=no_tenant_types)
 
         try:
             amount     = Decimal(amount_str)
@@ -81,45 +88,50 @@ def add():
             flash('Invalid amount or date.', 'error')
             return render_template('transactions/add.html',
                                    tenants=tenants,
-                                   charge_types=charge_types)
+                                   no_tenant_types=no_tenant_types)
 
-        month_year = trans_date.strftime('%B %Y')
+        # ── PATH A: Tenant payment — run through matching engine ──────────
+        if tenant_id:
+            from app.transactions.matcher import auto_match_payment
+            result = auto_match_payment(
+                tenant_id=int(tenant_id),
+                payment_amount=amount,
+                payment_date=trans_date,
+                user_id=current_user.id,
+                preferred_description=notes or 'Cash payment',
+                bank_import_id=None,
+            )
+            db.session.commit()
+            for s in result['summary']:
+                flash(s, 'success')
+            flash(
+                f'Cash payment of £{amount} recorded and allocated to '
+                f'{Tenant.query.get(int(tenant_id)).full_name}\'s account.',
+                'success'
+            )
+            return redirect(url_for('transactions.index'))
 
-        cr = Transaction(
-            tenant_id=int(tenant_id) if tenant_id else None,
+        # ── PATH B: No tenant — raw cashbook income entry ─────────────────
+        t = Transaction(
+            tenant_id=None,
             amount=amount,
             credit_debit='cr',
             transaction_date=trans_date,
             user_id=current_user.id,
             type=type_,
-            charge_type_id=int(charge_type_id) if charge_type_id else None,
-            month_year_period=month_year,
+            month_year_period=trans_date.strftime('%B %Y'),
             source=source,
             is_matched=True,
             notes=notes,
         )
-        db_ = Transaction(
-            tenant_id=int(tenant_id) if tenant_id else None,
-            amount=amount,
-            credit_debit='db',
-            transaction_date=trans_date,
-            user_id=current_user.id,
-            type=type_,
-            charge_type_id=int(charge_type_id) if charge_type_id else None,
-            month_year_period=month_year,
-            source=source,
-            is_matched=True,
-            notes=notes,
-        )
-        db.session.add(cr)
-        db.session.add(db_)
+        db.session.add(t)
         db.session.commit()
-        flash(f'Transaction recorded — £{amount} {credit_debit} ({type_}).', 'success')
+        flash(f'Income of £{amount} recorded ({type_}).', 'success')
         return redirect(url_for('transactions.index'))
 
     return render_template('transactions/add.html',
                            tenants=tenants,
-                           charge_types=charge_types)
+                           no_tenant_types=no_tenant_types)
 
 
 @transactions_bp.route('/import', methods=['GET', 'POST'])

@@ -8,7 +8,7 @@
 
 <p class="text-muted">
     Export your financial transactions as a CSV file ready to import into QuickFile
-    for your Self Assessment tax return. Each property is exported separately.
+    for your Self Assessment tax return. All properties are included in one file.
 </p>
 
 <!-- Format reminder -->
@@ -30,32 +30,14 @@
         <em>JIJIN JOSE Rent</em> and <em>JIJIN JOSE Bills</em>.
     </p>
     <p style="font-size:13px; margin-top:6px; color:var(--text-secondary);">
-        Expenses for the selected property appear as debit rows with their
-        description as entered.
+        Expenses appear as debit rows with their description as entered,
+        across all your properties.
     </p>
 </div>
 
 <!-- Export form -->
 <div style="max-width:560px;">
 <form method="GET" action="{{ url_for('reports.quickfile_export') }}">
-
-    <div class="form-group">
-        <label for="property_id">
-            Property <span style="color:var(--error);">*</span>
-        </label>
-        <select id="property_id" name="property_id" required>
-            <option value="">— Select property —</option>
-            {% for prop in properties %}
-            <option value="{{ prop.id }}">
-                {{ prop.property_ref or prop.address_line1 }}
-                — {{ prop.address_line1 }}, {{ prop.postcode }}
-            </option>
-            {% endfor %}
-        </select>
-        <span class="form-hint">
-            Each property is exported as a separate file.
-        </span>
-    </div>
 
     <div class="form-group">
         <label for="tax_year">
@@ -99,8 +81,8 @@
                 received (bank import and manual cash entries)
             </li>
             <li>
-                <strong>Debits</strong> — expenses recorded against
-                the selected property (water, broadband, insurance,
+                <strong>Debits</strong> — expenses recorded as bank or cash
+                payments across all properties (water, broadband, insurance,
                 repairs etc.)
             </li>
             <li>
@@ -126,6 +108,7 @@
             </li>
             <li>Unmatched or unconfirmed transactions</li>
             <li>System-generated entries (source = system)</li>
+            <li>Bill-share calculation entries (internal cost-split only)</li>
         </ul>
     </div>
 
