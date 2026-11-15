@@ -98,8 +98,8 @@
         </h2>
         <p style="font-size:14px; color:var(--text-secondary); margin-bottom:20px;">
             Closing the contract is irreversible. The room will be marked vacant
-            and all future rent charges beyond the true end date will be set to £0.
-            This feeds into the deposit deduction calculation.
+            and rent charges for any month starting after the end date will be set to £0.
+            The end date itself is included as the last day rent is owed.
         </p>
 
         <div class="form-group">
@@ -143,8 +143,8 @@
             <input type="date" id="notice_end_date" name="notice_end_date"
                    value="{{ contract.notice_end_date.isoformat() if contract.notice_end_date else '' }}">
             <span class="form-hint">
-                Last day rent is owed under the notice period.
-                Future charges beyond this date will be set to £0.
+                The last day rent is owed — this date is <strong>included</strong>.
+                Rent charges for any month starting after this date will be set to £0.
             </span>
         </div>
 
@@ -154,8 +154,8 @@
             <input type="date" id="surrender_date" name="surrender_date"
                    value="{{ contract.surrender_date.isoformat() if contract.surrender_date else '' }}">
             <span class="form-hint">
-                Agreed early exit date. Rent is only owed up to and including this date.
-                Future charges beyond this date will be set to £0.
+                The agreed last day — rent is owed up to and <strong>including</strong> this date.
+                Rent charges for any month starting after this date will be set to £0.
             </span>
         </div>
 

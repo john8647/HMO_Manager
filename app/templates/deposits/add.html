@@ -30,9 +30,9 @@
     </div>
 
     <div class="form-group">
-        <label for="contract_id">Link to Contract</label>
-        <select id="contract_id" name="contract_id">
-            <option value="">— Select contract (optional) —</option>
+        <label for="contract_id">Link to Contract <span style="color:var(--error);">*</span></label>
+        <select id="contract_id" name="contract_id" required>
+            <option value="">— Select tenant first, then choose contract —</option>
             {% for contract in contracts %}
             <option value="{{ contract.id }}">
                 {{ contract.start_date.strftime('%d %b %Y') }} —
@@ -43,7 +43,7 @@
             {% endfor %}
         </select>
         <span class="form-hint">
-            Select a tenant above to load their contracts.
+            A deposit must be linked to a contract. Select a tenant above to load their contracts.
         </span>
     </div>
 
@@ -139,22 +139,23 @@ function loadContracts(tenantId) {
     const sel = document.getElementById('contract_id');
     sel.innerHTML = '<option value="">— Loading... —</option>';
     if (!tenantId) {
-        sel.innerHTML = '<option value="">— Select contract (optional) —</option>';
+        sel.innerHTML = '<option value="">— Select tenant first, then choose contract —</option>';
         return;
     }
     fetch(`/deposits/contracts/${tenantId}`)
         .then(r => r.json())
         .then(contracts => {
-            sel.innerHTML =
-                '<option value="">— Select contract (optional) —</option>';
-            contracts.forEach(c => {
-                sel.innerHTML +=
-                    `<option value="${c.id}">${c.label}</option>`;
-            });
+            if (contracts.length === 0) {
+                sel.innerHTML = '<option value="">— No contracts found for this tenant —</option>';
+            } else {
+                sel.innerHTML = '<option value="">— Select a contract (required) —</option>';
+                contracts.forEach(c => {
+                    sel.innerHTML += `<option value="${c.id}">${c.label}</option>`;
+                });
+            }
         })
         .catch(() => {
-            sel.innerHTML =
-                '<option value="">— Could not load contracts —</option>';
+            sel.innerHTML = '<option value="">— Could not load contracts —</option>';
         });
 }
 </script>

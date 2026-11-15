@@ -27,7 +27,8 @@ STATUSES = [
     ('protected',  'Protected', 'Registered and protected with a DPS scheme'),
     ('paid',       'Paid',      'Deposit returned to tenant in full'),
     ('deducting',  'Deducting', 'Deductions being assessed before return'),
-    ('withdrawn',  'Withdrawn', 'Deposit retained — breach of contract'),
+    ('withdrawn',  'Withdrawn', 'Deposit retained — breach of contract / awaiting DPS payout'),
+    ('claimed',    'Claimed',   'DPS payout received — tenant balance cleared'),
 ]
 
 
@@ -191,6 +192,8 @@ def add():
         errors = []
         if not tenant_id:
             errors.append('Tenant is required.')
+        if not contract_id:
+            errors.append('A contract must be selected.')
         if not amount_str:
             errors.append('Deposit amount is required.')
         if not date_received_s:
@@ -214,6 +217,20 @@ def add():
             )
         except ValueError:
             flash('Invalid amount or date.', 'error')
+            return render_template('deposits/add.html',
+                                   tenants=tenants,
+                                   dps_companies=DPS_COMPANIES,
+                                   statuses=STATUSES,
+                                   prefill_tenant=prefill_tenant)
+
+        # Verify the contract exists and belongs to this user/tenant
+        contract = TenantContract.query.filter_by(
+            id=int(contract_id),
+            tenant_id=int(tenant_id),
+            user_id=current_user.id,
+        ).first()
+        if not contract:
+            flash('Selected contract not found — please choose a valid contract.', 'error')
             return render_template('deposits/add.html',
                                    tenants=tenants,
                                    dps_companies=DPS_COMPANIES,
@@ -498,14 +515,58 @@ def settle(deposit_id):
                 deposit.returned_date = datetime.strptime(returned_date_s, '%Y-%m-%d').date()
             except ValueError:
                 pass
-        elif new_status in ('paid', 'returned'):
+        elif new_status in ('paid', 'returned', 'claimed'):
             deposit.returned_date = date.today()
 
+        # ── Claimed: DPS payout received — clear outstanding balance ─────
+        # When the landlord marks the deposit as Claimed, automatically
+        # create credit transactions to bring the tenant's balance to £0.
+        credits_created = []
+        if new_status == 'claimed':
+            settle_date = deposit.returned_date or date.today()
+            note_base   = f'Deposit claimed (DPS payout) — ref: {deposit.dps_reference or "N/A"}'
+
+            rent_outstanding = _live_balance(tenant.id)[0]   # rent_bal
+            bill_outstanding = _live_balance(tenant.id)[1]   # bill_bal
+
+            if rent_outstanding > _D('0.00'):
+                cr_rent = Transaction(
+                    tenant_id    = tenant.id,
+                    amount       = rent_outstanding,
+                    credit_debit = 'cr',
+                    transaction_date = settle_date,
+                    user_id      = current_user.id,
+                    type         = 'Rent',
+                    month_year_period = settle_date.strftime('%B %Y'),
+                    source       = 'manual',
+                    is_matched   = True,
+                    notes        = f'{note_base}. Rent cleared: £{rent_outstanding:.2f}.',
+                )
+                db.session.add(cr_rent)
+                credits_created.append(f'£{rent_outstanding:.2f} Rent')
+
+            if bill_outstanding > _D('0.00'):
+                cr_bills = Transaction(
+                    tenant_id    = tenant.id,
+                    amount       = bill_outstanding,
+                    credit_debit = 'cr',
+                    transaction_date = settle_date,
+                    user_id      = current_user.id,
+                    type         = 'Bills',
+                    month_year_period = settle_date.strftime('%B %Y'),
+                    source       = 'manual',
+                    is_matched   = True,
+                    notes        = f'{note_base}. Bills cleared: £{bill_outstanding:.2f}.',
+                )
+                db.session.add(cr_bills)
+                credits_created.append(f'£{bill_outstanding:.2f} Bills')
+
         db.session.commit()
-        flash(
-            f'Deposit settlement saved — status set to {new_status.title()}.',
-            'success'
-        )
+
+        msg = f'Deposit settlement saved — status set to {new_status.title()}.'
+        if credits_created:
+            msg += f' Balance cleared: {", ".join(credits_created)}.'
+        flash(msg, 'success')
         return redirect(url_for('deposits.view', deposit_id=deposit.id))
 
     return render_template(

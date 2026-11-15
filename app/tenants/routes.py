@@ -541,14 +541,21 @@ def edit_contract(tenant_id, contract_id):
                 room.is_occupied = False
 
             # ── Zero out future rent debits beyond true_end ───────────────
-            # These are system-generated charges for periods that will not now
-            # be served.  Setting amount to 0 keeps the audit trail but removes
-            # the financial liability.  A note records why.
+            # Rent charges are dated on the first of the month they cover.
+            # A charge dated 1 Dec covers December — if true_end is in Nov,
+            # that December charge must be zeroed even though 1 Dec > true_end.
+            # A charge dated 1 Nov covers November — if the tenant's last day
+            # is mid-November that charge stays (rent for the whole month
+            # is still owed; proration is handled separately).
+            # So: zero any charge whose period starts on or after the first
+            # day of the month immediately after true_end.
+            from dateutil.relativedelta import relativedelta as _rd
+            first_of_next_month = true_end.replace(day=1) + _rd(months=1)
             future_debits = Transaction.query.filter(
-                Transaction.tenant_id   == tenant.id,
+                Transaction.tenant_id    == tenant.id,
                 Transaction.credit_debit == 'db',
                 Transaction.type         == 'Rent',
-                Transaction.transaction_date > true_end,
+                Transaction.transaction_date >= first_of_next_month,
             ).all()
 
             zeroed = 0
@@ -562,11 +569,33 @@ def edit_contract(tenant_id, contract_id):
                     )
                     zeroed += 1
 
+            # ── Reclassify Advanced Rent credits → Rent ───────────────────
+            # Advanced Rent (deposit-scheme payment) served as the final
+            # month's rent.  Relabelling keeps the rent roll balanced and
+            # ensures _outstanding_debit('Rent') returns the correct figure
+            # after closure — the debit and credit types now match.
+            adv_rent_credits = Transaction.query.filter_by(
+                tenant_id    = tenant.id,
+                credit_debit = 'cr',
+                type         = 'Advanced Rent',
+            ).all()
+            relabelled = 0
+            for tx in adv_rent_credits:
+                tx.type  = 'Rent'
+                tx.notes = (
+                    'Reclassified Advanced Rent → Rent on contract closure '
+                    f'({true_end.strftime("%d %b %Y")}). '
+                    + (tx.notes or '')
+                )
+                relabelled += 1
+
             db.session.commit()
 
             msg = f'Contract closed ({closure_type}). True end date: {true_end.strftime("%d %b %Y")}.'
             if zeroed:
                 msg += f' {zeroed} future charge(s) set to £0.'
+            if relabelled:
+                msg += f' {relabelled} Advanced Rent credit(s) reclassified as Rent.'
             flash(msg, 'success')
             return redirect(url_for('tenants.view', tenant_id=tenant.id))
         # ── End Contract Closure ─────────────────────────────────────────

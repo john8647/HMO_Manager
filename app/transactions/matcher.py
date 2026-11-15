@@ -49,6 +49,13 @@ def auto_match_payment(
     summary      = []
     base_desc    = (preferred_description or '').strip()
 
+    # Determine if tenant has an active contract — affects priority order
+    # and surplus handling (imported here to avoid circular import at module level)
+    from app.models import TenantContract as _TC
+    _active_contract = _TC.query.filter_by(
+        tenant_id=tenant_id, is_active=True
+    ).first()
+
     def make_credit(amount, type_, notes):
         t = Transaction(
             tenant_id=tenant_id,
@@ -76,25 +83,38 @@ def auto_match_payment(
         transactions.append(t)
         summary.append(f'£{pay:.2f} → Advanced Rent charge.')
 
-    # ── STEP 2: Rent ─────────────────────────────────────────────────────
-    rent_owed = _outstanding_debit(tenant_id, 'Rent')
-    if rent_owed > Decimal('0.00') and remaining > Decimal('0.00'):
-        pay = min(rent_owed, remaining)
-        remaining -= pay
-        t = make_credit(pay, 'Rent', f'{base_desc} Rent'.strip())
-        transactions.append(t)
-        summary.append(f'£{pay:.2f} → Rent charge.')
-
-    # ── STEP 3: Bills ────────────────────────────────────────────────────
+    # ── STEP 2 & 3: Rent then Bills (active) / Bills then Rent (closed) ──
+    # Active contract: pay rent first so it never falls behind, then bills.
+    # Closed contract: settle bills first (tenant is actively paying them
+    # off), then clear any remaining rent debt.
+    rent_owed  = _outstanding_debit(tenant_id, 'Rent')
     bills_owed = _outstanding_debit(tenant_id, 'Bills')
-    if bills_owed > Decimal('0.00') and remaining > Decimal('0.00'):
-        pay = min(bills_owed, remaining)
-        remaining -= pay
-        t = make_credit(pay, 'Bills', f'{base_desc} Bills'.strip())
-        transactions.append(t)
-        # Mark invoices settled oldest first
-        _settle_invoices(tenant_id, pay, payment_date, bank_import_id)
-        summary.append(f'£{pay:.2f} → Bill invoices.')
+
+    def _pay_rent():
+        nonlocal remaining
+        if rent_owed > Decimal('0.00') and remaining > Decimal('0.00'):
+            pay = min(rent_owed, remaining)
+            remaining -= pay
+            t = make_credit(pay, 'Rent', f'{base_desc} Rent'.strip())
+            transactions.append(t)
+            summary.append(f'£{pay:.2f} → Rent charge.')
+
+    def _pay_bills():
+        nonlocal remaining
+        if bills_owed > Decimal('0.00') and remaining > Decimal('0.00'):
+            pay = min(bills_owed, remaining)
+            remaining -= pay
+            t = make_credit(pay, 'Bills', f'{base_desc} Bills'.strip())
+            transactions.append(t)
+            _settle_invoices(tenant_id, pay, payment_date, bank_import_id)
+            summary.append(f'£{pay:.2f} → Bill invoices.')
+
+    if _active_contract:
+        _pay_rent()   # active: rent priority
+        _pay_bills()
+    else:
+        _pay_bills()  # closed: bills first, then any remaining rent debt
+        _pay_rent()
 
     # ── STEP 4: Surplus ──────────────────────────────────────────────────
     if remaining > Decimal('0.00'):
@@ -108,14 +128,26 @@ def auto_match_payment(
             transactions.append(t)
             summary.append(f'£{remaining:.2f} → Deposit.')
         else:
-            # Early payment — label as Rent so rent engine skips period
-            t = make_credit(remaining, 'Rent',
-                            f'{base_desc} Rent'.strip())
-            transactions.append(t)
-            summary.append(
-                f'£{remaining:.2f} recorded as early Rent '
-                f'({payment_date.strftime("%B %Y")}).'
-            )
+            if _active_contract:
+                # Active contract — early payment, label as Rent so the
+                # rent engine skips that period.
+                t = make_credit(remaining, 'Rent',
+                                f'{base_desc} Rent'.strip())
+                transactions.append(t)
+                summary.append(
+                    f'£{remaining:.2f} recorded as early Rent '
+                    f'({payment_date.strftime("%B %Y")}).'
+                )
+            else:
+                # Closed contract — record as a plain overpayment credit.
+                # This may result in a credit balance to be refunded.
+                t = make_credit(remaining, 'Overpayment',
+                                f'{base_desc} Overpayment'.strip())
+                transactions.append(t)
+                summary.append(
+                    f'£{remaining:.2f} recorded as overpayment credit '
+                    f'(contract closed — no active rent to allocate to).'
+                )
         remaining = Decimal('0.00')
 
     # Flush and recalculate balance from raw transactions
