@@ -277,6 +277,65 @@ def match(import_id):
             flash('Row matched.', 'success')
             return redirect(url_for('transactions.match', import_id=import_id))
 
+        elif action == 'split':
+            row_id = request.form.get('row_id')
+            row    = BankImportRow.query.get_or_404(int(row_id))
+            total  = row.credit_amount or row.debit_amount or Decimal('0')
+
+            s1_amount    = Decimal(request.form.get('split1_amount') or '0')
+            s1_tenant_id = request.form.get('split1_tenant_id') or None
+            s2_amount    = Decimal(request.form.get('split2_amount') or '0')
+            s2_tenant_id = request.form.get('split2_tenant_id') or None
+
+            # Validate the two amounts add up to the row total
+            if abs((s1_amount + s2_amount) - total) > Decimal('0.01'):
+                flash(
+                    f'Split amounts (£{s1_amount:.2f} + £{s2_amount:.2f}) '
+                    f'must add up to £{total:.2f}.', 'error'
+                )
+                return redirect(url_for('transactions.match', import_id=import_id))
+
+            created = []
+            for amount, tenant_id in [(s1_amount, s1_tenant_id),
+                                       (s2_amount, s2_tenant_id)]:
+                if amount <= Decimal('0'):
+                    continue
+                if tenant_id:
+                    result = auto_match_payment(
+                        tenant_id=int(tenant_id),
+                        payment_amount=amount,
+                        payment_date=row.transaction_date,
+                        user_id=current_user.id,
+                        bank_import_id=import_id,
+                        preferred_description=row.description,
+                    )
+                    created.extend(result['transactions_created'])
+                    for s in result['summary']:
+                        flash(s, 'success')
+                else:
+                    # No tenant — generic credit
+                    t = Transaction(
+                        tenant_id=None,
+                        amount=amount,
+                        credit_debit='cr' if row.credit_amount else 'db',
+                        transaction_date=row.transaction_date,
+                        user_id=current_user.id,
+                        type='Other Income',
+                        source='bank_import',
+                        bank_import_id=import_id,
+                        is_matched=True,
+                        notes=row.description,
+                    )
+                    db.session.add(t)
+                    created.append(t)
+
+            row.match_status = 'split'
+            if created:
+                row.transaction_id = created[0].id
+            db.session.commit()
+            flash('Payment split and matched.', 'success')
+            return redirect(url_for('transactions.match', import_id=import_id))
+
         elif action == 'skip':
             row_id = request.form.get('row_id')
             row    = BankImportRow.query.get_or_404(int(row_id))

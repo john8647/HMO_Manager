@@ -67,6 +67,12 @@ def parse_bank_csv(file_content: str) -> list[dict]:
             'expense_type':     None,
         })
 
+    # Bank CSV downloads are newest-first.  Reverse so the importer and
+    # matcher process oldest transactions first — this ensures an Advanced
+    # Rent or early payment is applied to the correct (earliest) charge
+    # rather than the most recent one.
+    rows.reverse()
+
     return rows
 
 
