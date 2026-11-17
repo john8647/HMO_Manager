@@ -65,7 +65,7 @@
     <div class="card" style="border-top-color:var(--error);">
         <div class="card-title">Total Outstanding</div>
         <div class="card-value" style="color:var(--error);">
-            £{{ '%.2f'|format(total_outstanding) }}
+            £{{ '%.2f'|format(total_balance) }}
         </div>
         <div class="card-sub">Across all tenants</div>
     </div>
@@ -248,7 +248,7 @@
             </td>
             <td style="text-align:right;">
                 <strong style="color:var(--error);">
-                    £{{ '%.2f'|format(total_outstanding) }}
+                    £{{ '%.2f'|format(total_balance) }}
                 </strong>
             </td>
             <td colspan="3"></td>

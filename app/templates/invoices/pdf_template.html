@@ -61,10 +61,10 @@
     }
     .meta-table td {
         padding: 4px 8px 4px 0;
-        font-size: 10pt;
+        font-size: 11pt;
     }
-    .meta-table .label { color: #505a5f; width: 140px; }
-    .meta-table .value { font-weight: bold; }
+    .meta-table .label { color: #505a5f; width: 140px; font-size: 11pt; }
+    .meta-table .value { font-weight: bold; font-size: 11pt; }
     /* Line items table */
     .items-table {
         width: 100%;
@@ -140,16 +140,10 @@
 <!-- Header -->
 <div class="header">
     <div>
-        <div class="business-name">HMO Properties</div>
-        {% if landlord %}
-        <div style="font-size:10pt; color:#505a5f; margin-top:4px;">
-            {{ landlord.email }}
-        </div>
-        {% endif %}
+        <div class="business-name">{{ invoice.property.address_line1 }}</div>
     </div>
     <div>
-        <div class="invoice-label">INVOICE</div>
-        <div class="invoice-number">{{ invoice.invoice_number }}</div>
+        <div class="invoice-number" style="font-size:13pt; font-weight:bold; color:#0b0c0c;">{{ invoice.invoice_number }}</div>
     </div>
 </div>
 
@@ -165,9 +159,10 @@
         {% if invoice.property.city %}{{ invoice.property.city }}<br>{% endif %}
         {{ invoice.property.postcode }}
     </div>
-    <div class="address-block" style="text-align:right;">
+  
+    <div style="text-align:right;">
         <h3>Invoice Details</h3>
-        <table class="meta-table" style="margin-left:auto; width:auto;">
+        <table class="meta-table" class="items-table" style="margin-left:auto; width:auto;">
             <tr>
                 <td class="label">Invoice No.</td>
                 <td class="value">{{ invoice.invoice_number }}</td>
@@ -192,13 +187,9 @@
                     {{ invoice.period_end.strftime('%d %b %Y') if invoice.period_end else '—' }}
                 </td>
             </tr>
-            <tr>
-                <td class="label">Account Ref</td>
-                <td class="value">{{ invoice.tenant.invoice_account_number or '—' }}</td>
-            </tr>
         </table>
     </div>
-</div>
+</div>  
 
 <!-- Line items -->
 <table class="items-table">
@@ -239,13 +230,9 @@
 <!-- Payment instructions -->
 <div class="payment-box">
     <h3>Payment Instructions</h3>
-    <p>Please make payment by bank transfer to the account below, quoting your
-    account reference <strong>{{ invoice.tenant.invoice_account_number }}</strong>.</p>
-    <p><strong>Reference to use:</strong> {{ invoice.tenant.last_name|upper }}
-    {{ invoice.invoice_number }}</p>
-    <p style="margin-top:8px; font-size:9pt; color:#505a5f;">
+    <p>Please make payment by bank transfer to the account below.</p>
+    <p style="margin-top:8px; font-size:10pt; color:#505a5f;">
         Payment is due by {{ invoice.due_date.strftime('%d %B %Y') if invoice.due_date else 'the date shown above' }}.
-        Late payment may result in a late payment charge.
         If you have any queries about this invoice please contact your landlord.
     </p>
 </div>
