@@ -130,14 +130,42 @@ app/
 
 ## Setup
 
+Dependencies are declared in `pyproject.toml`. Two ways to run the project:
+
+### Option A — uv (recommended)
+
+[uv](https://docs.astral.sh/uv/) manages the virtual environment and dependencies automatically.
+
+```bash
+uv sync
+uv run flask db upgrade
+uv run python seed_admin.py
+uv run flask run
+```
+
+### Option B — standard venv
+
+**Linux / macOS**
 ```bash
 python -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install .
 flask db upgrade
 python seed_admin.py
 flask run
 ```
+
+**Windows**
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install .
+flask db upgrade
+python seed_admin.py
+flask run
+```
+
+To add a new dependency, update `[project] dependencies` in `pyproject.toml` and re-run `uv sync` (or `pip install .`).
 
 ---
 
