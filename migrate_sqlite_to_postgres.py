@@ -143,6 +143,13 @@ with app.app_context():
         migrate_table(sqlite_conn, Deposit, 'deposits',
             lambda r: bool_fix(r, 'surrender_accepted'))
 
+        # Picklists first — referenced by invoice_items and transactions
+        migrate_table(sqlite_conn, PicklistCharge, 'picklist_charges')
+
+        migrate_table(sqlite_conn, PicklistPaymentType, 'picklist_payment_types')
+
+        migrate_table(sqlite_conn, TransactionLegend, 'transaction_legend')
+
         migrate_table(sqlite_conn, Bill, 'bills')
 
         migrate_table(sqlite_conn, Invoice, 'invoices')
@@ -154,20 +161,14 @@ with app.app_context():
         migrate_table(sqlite_conn, BillTenantShare, 'bill_tenant_shares',
             lambda r: bool_fix(r, 'is_paid'))
 
+        migrate_table(sqlite_conn, BankImport, 'bank_imports')
+
         migrate_table(sqlite_conn, Transaction, 'transactions',
             lambda r: bool_fix(r, 'is_matched'))
 
-        migrate_table(sqlite_conn, BankImport, 'bank_imports')
-
         migrate_table(sqlite_conn, BankImportRow, 'bank_import_rows')
 
-        migrate_table(sqlite_conn, TransactionLegend, 'transaction_legend')
-
         migrate_table(sqlite_conn, Expense, 'expenses')
-
-        migrate_table(sqlite_conn, PicklistCharge, 'picklist_charges')
-
-        migrate_table(sqlite_conn, PicklistPaymentType, 'picklist_payment_types')
 
         migrate_table(sqlite_conn, ComplianceDocument, 'compliance_documents')
 
