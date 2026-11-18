@@ -122,55 +122,55 @@ with app.app_context():
     try:
         # Tables in dependency order (parents before children)
 
-        migrate_table(sqlite_conn, User, 'user',
+        migrate_table(sqlite_conn, User, 'users',
             lambda r: bool_fix(r, 'is_active', 'is_admin'))
 
-        migrate_table(sqlite_conn, Property, 'property')
+        migrate_table(sqlite_conn, Property, 'properties')
 
-        migrate_table(sqlite_conn, Room, 'room',
+        migrate_table(sqlite_conn, Room, 'rooms',
             lambda r: bool_fix(r, 'is_occupied', 'en_suite'))
 
-        migrate_table(sqlite_conn, Tenant, 'tenant',
+        migrate_table(sqlite_conn, Tenant, 'tenants',
             lambda r: bool_fix(r, 'is_active'))
 
-        migrate_table(sqlite_conn, TenantContract, 'tenant_contract',
+        migrate_table(sqlite_conn, TenantContract, 'tenant_contracts',
             lambda r: bool_fix(r, 'is_active', 'surrender_accepted'))
 
-        migrate_table(sqlite_conn, Deposit, 'deposit',
+        migrate_table(sqlite_conn, Deposit, 'deposits',
             lambda r: bool_fix(r, 'surrender_accepted'))
 
-        migrate_table(sqlite_conn, Bill, 'bill')
+        migrate_table(sqlite_conn, Bill, 'bills')
 
-        migrate_table(sqlite_conn, BillTenantShare, 'bill_tenant_share',
+        migrate_table(sqlite_conn, BillTenantShare, 'bill_tenant_shares',
             lambda r: bool_fix(r, 'is_paid'))
 
-        migrate_table(sqlite_conn, Invoice, 'invoice')
+        migrate_table(sqlite_conn, Invoice, 'invoices')
 
-        migrate_table(sqlite_conn, InvoiceItem, 'invoice_item')
+        migrate_table(sqlite_conn, InvoiceItem, 'invoice_items')
 
-        migrate_table(sqlite_conn, InvoicePayment, 'invoice_payment')
+        migrate_table(sqlite_conn, InvoicePayment, 'invoice_payments')
 
-        migrate_table(sqlite_conn, Transaction, 'transaction',
+        migrate_table(sqlite_conn, Transaction, 'transactions',
             lambda r: bool_fix(r, 'is_matched'))
 
-        migrate_table(sqlite_conn, BankImport, 'bank_import')
+        migrate_table(sqlite_conn, BankImport, 'bank_imports')
 
-        migrate_table(sqlite_conn, BankImportRow, 'bank_import_row')
+        migrate_table(sqlite_conn, BankImportRow, 'bank_import_rows')
 
         migrate_table(sqlite_conn, TransactionLegend, 'transaction_legend')
 
-        migrate_table(sqlite_conn, Expense, 'expense')
+        migrate_table(sqlite_conn, Expense, 'expenses')
 
-        migrate_table(sqlite_conn, PicklistCharge, 'picklist_charge')
+        migrate_table(sqlite_conn, PicklistCharge, 'picklist_charges')
 
-        migrate_table(sqlite_conn, PicklistPaymentType, 'picklist_payment_type')
+        migrate_table(sqlite_conn, PicklistPaymentType, 'picklist_payment_types')
 
-        migrate_table(sqlite_conn, ComplianceDocument, 'compliance_document')
+        migrate_table(sqlite_conn, ComplianceDocument, 'compliance_documents')
 
-        migrate_table(sqlite_conn, Task, 'task',
+        migrate_table(sqlite_conn, Task, 'tasks',
             lambda r: bool_fix(r, 'is_complete'))
 
-        migrate_table(sqlite_conn, Message, 'message',
+        migrate_table(sqlite_conn, Message, 'messages',
             lambda r: bool_fix(r, 'is_read'))
 
         db.session.commit()
@@ -181,12 +181,12 @@ with app.app_context():
         # highest existing id, otherwise new inserts will collide.
         print('\nResetting PostgreSQL sequences...')
         tables = [
-            'user', 'property', 'room', 'tenant', 'tenant_contract',
-            'deposit', 'bill', 'bill_tenant_share', 'invoice',
-            'invoice_item', 'invoice_payment', 'transaction',
-            'bank_import', 'bank_import_row', 'transaction_legend',
-            'expense', 'picklist_charge', 'picklist_payment_type',
-            'compliance_document', 'task', 'message',
+            'users', 'properties', 'rooms', 'tenants', 'tenant_contracts',
+            'deposits', 'bills', 'bill_tenant_shares', 'invoices',
+            'invoice_items', 'invoice_payments', 'transactions',
+            'bank_imports', 'bank_import_rows', 'transaction_legend',
+            'expenses', 'picklist_charges', 'picklist_payment_types',
+            'compliance_documents', 'tasks', 'messages',
         ]
         for table in tables:
             try:
