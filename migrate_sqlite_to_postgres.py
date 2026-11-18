@@ -18,6 +18,14 @@ Safe to re-run: existing rows in PostgreSQL are skipped (INSERT OR IGNORE
 equivalent via ON CONFLICT DO NOTHING).
 """
 
+from app.models import (
+    User, Property, Room, Tenant, TenantContract, Deposit,
+    Bill, BillTenantShare, Invoice, InvoiceItem, InvoicePayment,
+    Transaction, BankImport, BankImportRow, TransactionLegend,
+    Expense, PicklistCharge, PicklistPaymentType,
+    ComplianceDocument, Task, Message,
+)
+from app import create_app, db
 import os
 import sys
 import sqlite3
@@ -50,14 +58,6 @@ if not DATABASE_URL or DATABASE_URL.startswith('sqlite'):
 print(f'PostgreSQL target: {DATABASE_URL.split("@")[-1]}')  # hide credentials
 
 # ── Bootstrap Flask app so SQLAlchemy models are available ───────────────────
-from app import create_app, db
-from app.models import (
-    User, Property, Room, Tenant, TenantContract, Deposit,
-    Bill, BillTenantShare, Invoice, InvoiceItem, InvoicePayment,
-    Transaction, BankImport, BankImportRow, TransactionLegend,
-    Expense, PicklistCharge, PicklistPaymentType,
-    ComplianceDocument, Task, Message,
-)
 
 app = create_app('production')
 
@@ -82,7 +82,7 @@ def migrate_table(conn, model, table_name, transform=None):
         return 0
 
     inserted = 0
-    skipped  = 0
+    skipped = 0
     for row in rows:
         if transform:
             row = transform(row)
@@ -96,6 +96,9 @@ def migrate_table(conn, model, table_name, transform=None):
             skipped += 1
             continue
 
+        # Drop any columns from SQLite that no longer exist in the model
+        valid_cols = {c.key for c in model.__table__.columns}
+        row = {k: v for k, v in row.items() if k in valid_cols}
         obj = model(**row)
         db.session.add(obj)
         inserted += 1
@@ -123,26 +126,26 @@ with app.app_context():
         # Tables in dependency order (parents before children)
 
         migrate_table(sqlite_conn, User, 'users',
-            lambda r: bool_fix(r, 'is_active', 'is_admin'))
+                      lambda r: bool_fix(r, 'is_active', 'is_admin'))
 
         migrate_table(sqlite_conn, Property, 'properties')
 
         migrate_table(sqlite_conn, Room, 'rooms',
-            lambda r: bool_fix(r, 'is_occupied', 'en_suite'))
+                      lambda r: bool_fix(r, 'is_occupied', 'en_suite'))
 
         migrate_table(sqlite_conn, Tenant, 'tenants',
-            lambda r: bool_fix(r, 'is_active'))
+                      lambda r: bool_fix(r, 'is_active'))
 
         migrate_table(sqlite_conn, TenantContract, 'tenant_contracts',
-            lambda r: bool_fix(r, 'is_active', 'surrender_accepted'))
+                      lambda r: bool_fix(r, 'is_active', 'surrender_accepted'))
 
         migrate_table(sqlite_conn, Deposit, 'deposits',
-            lambda r: bool_fix(r, 'surrender_accepted'))
+                      lambda r: bool_fix(r, 'surrender_accepted'))
 
         migrate_table(sqlite_conn, Bill, 'bills')
 
         migrate_table(sqlite_conn, BillTenantShare, 'bill_tenant_shares',
-            lambda r: bool_fix(r, 'is_paid'))
+                      lambda r: bool_fix(r, 'is_paid'))
 
         migrate_table(sqlite_conn, Invoice, 'invoices')
 
@@ -151,7 +154,7 @@ with app.app_context():
         migrate_table(sqlite_conn, InvoicePayment, 'invoice_payments')
 
         migrate_table(sqlite_conn, Transaction, 'transactions',
-            lambda r: bool_fix(r, 'is_matched'))
+                      lambda r: bool_fix(r, 'is_matched'))
 
         migrate_table(sqlite_conn, BankImport, 'bank_imports')
 
@@ -163,15 +166,16 @@ with app.app_context():
 
         migrate_table(sqlite_conn, PicklistCharge, 'picklist_charges')
 
-        migrate_table(sqlite_conn, PicklistPaymentType, 'picklist_payment_types')
+        migrate_table(sqlite_conn, PicklistPaymentType,
+                      'picklist_payment_types')
 
         migrate_table(sqlite_conn, ComplianceDocument, 'compliance_documents')
 
         migrate_table(sqlite_conn, Task, 'tasks',
-            lambda r: bool_fix(r, 'is_complete'))
+                      lambda r: bool_fix(r, 'is_complete'))
 
         migrate_table(sqlite_conn, Message, 'messages',
-            lambda r: bool_fix(r, 'is_read'))
+                      lambda r: bool_fix(r, 'is_read'))
 
         db.session.commit()
         print('\n✓ Migration complete. All data committed to PostgreSQL.')
