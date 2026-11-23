@@ -107,6 +107,9 @@ def add():
     properties = Property.query.filter_by(user_id=current_user.id).all()
 
     if request.method == 'POST':
+        # Did the landlord click "Save & Generate Onboarding Link"?
+        onboarding = request.args.get('onboarding') == '1'
+
         first_name   = request.form.get('first_name', '').strip()
         last_name    = request.form.get('last_name', '').strip()
         email        = request.form.get('email', '').strip().lower()
@@ -169,6 +172,13 @@ def add():
         )
         db.session.add(tenant)
         db.session.commit()
+
+        # ── NEW: onboarding link branch ───────────────────────────────────
+        if onboarding:
+            return redirect(url_for('onboarding.generate_link', tenant_id=tenant.id),
+                            code=307)   # 307 preserves POST method
+        # ─────────────────────────────────────────────────────────────────
+
         flash(f'Tenant {tenant.full_name} added. Now create their contract.', 'success')
         return redirect(url_for('tenants.add_contract', tenant_id=tenant.id))
 

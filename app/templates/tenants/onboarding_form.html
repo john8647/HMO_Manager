@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tenant Move-In Details</title>
+    <style>
+        :root {
+            --green: #2d6a4f;
+            --green-light: #40916c;
+            --bg: #f4f7f4;
+            --surface: #ffffff;
+            --border: #d0ddd0;
+            --text: #1a2e1a;
+            --muted: #5a705a;
+            --error: #c0392b;
+            --radius: 8px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 24px 16px 48px;
+        }
+        .container { max-width: 680px; margin: 0 auto; }
+        .header {
+            background: var(--green);
+            color: #fff;
+            padding: 28px 32px;
+            border-radius: var(--radius) var(--radius) 0 0;
+        }
+        .header h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+        .header p  { font-size: 14px; opacity: 0.85; margin: 0; }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 28px 32px;
+            margin-bottom: 0;
+        }
+        .card:last-of-type { border-radius: 0 0 var(--radius) var(--radius); }
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--green);
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 8px;
+            margin: 24px 0 16px;
+        }
+        .section-title:first-child { margin-top: 0; }
+        .form-row { display: grid; gap: 0 20px; margin-bottom: 14px; }
+        .form-row.two-col { grid-template-columns: 1fr 1fr; }
+        .form-group { margin-bottom: 14px; }
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--muted);
+            margin-bottom: 5px;
+        }
+        input[type=text], input[type=email], input[type=password],
+        input[type=date], select, textarea {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            font-size: 14px;
+            color: var(--text);
+            background: #fff;
+            transition: border-color .15s;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--green-light);
+            box-shadow: 0 0 0 3px rgba(64,145,108,.15);
+        }
+        textarea { resize: vertical; min-height: 80px; }
+        .required { color: var(--error); margin-left: 2px; }
+        .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+        .gdpr-box {
+            background: #f0f7f2;
+            border: 1px solid #b7d9c5;
+            border-radius: 6px;
+            padding: 16px;
+            margin-top: 8px;
+        }
+        .gdpr-box p { font-size: 13px; color: var(--muted); margin-bottom: 12px; line-height: 1.6; }
+        .checkbox-row {
+            display: flex; align-items: flex-start; gap: 10px;
+        }
+        .checkbox-row input[type=checkbox] {
+            width: 18px; height: 18px; min-width: 18px;
+            margin-top: 2px; cursor: pointer;
+        }
+        .checkbox-row label {
+            font-size: 13px; font-weight: 500;
+            color: var(--text); margin: 0; cursor: pointer;
+        }
+        .password-section {
+            background: #f8faf8;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 8px;
+        }
+        .btn-submit {
+            display: block;
+            width: 100%;
+            background: var(--green);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 14px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 24px;
+            transition: background .15s;
+        }
+        .btn-submit:hover { background: var(--green-light); }
+        .alert {
+            padding: 10px 14px;
+            border-radius: 5px;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        .alert-error { background: #fdf0ef; border: 1px solid #e8c0bc; color: #7b1a14; }
+        .strength-bar {
+            height: 4px; border-radius: 2px; margin-top: 6px;
+            background: var(--border); overflow: hidden;
+        }
+        .strength-fill { height: 100%; width: 0; transition: width .3s, background .3s; border-radius: 2px; }
+        @media (max-width: 540px) {
+            .form-row.two-col { grid-template-columns: 1fr; }
+            .card, .header { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="header">
+        <h1>Welcome, {{ tenant.first_name or 'New Tenant' }}!</h1>
+        <p>Please complete your move-in details below. This form can only be submitted once.</p>
+    </div>
+
+    <div class="card">
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-error">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('onboarding.onboard_form', token=token) }}" novalidate>
+
+            <!-- ── Personal Details ───────────────────────────────────── -->
+            <p class="section-title">Personal Details</p>
+
+            <div class="form-row two-col">
+                <div class="form-group">
+                    <label for="first_name">First Name <span class="required">*</span></label>
+                    <input type="text" id="first_name" name="first_name"
+                           value="{{ request.form.get('first_name', tenant.first_name or '') }}"
+                           required autofocus>
+                </div>
+                <div class="form-group">
+                    <label for="last_name">Last Name <span class="required">*</span></label>
+                    <input type="text" id="last_name" name="last_name"
+                           value="{{ request.form.get('last_name', tenant.last_name or '') }}"
+                           required>
+                </div>
+            </div>
+
+            <div class="form-row two-col">
+                <div class="form-group">
+                    <label for="email">Email Address <span class="required">*</span></label>
+                    <input type="email" id="email" name="email"
+                           value="{{ request.form.get('email', tenant.email or '') }}"
+                           required>
+                </div>
+                <div class="form-group">
+                    <label for="phone">Phone Number</label>
+                    <input type="text" id="phone" name="phone"
+                           value="{{ request.form.get('phone', tenant.phone or '') }}">
+                </div>
+            </div>
+
+            <div class="form-row two-col">
+                <div class="form-group">
+                    <label for="date_of_birth">Date of Birth</label>
+                    <input type="date" id="date_of_birth" name="date_of_birth"
+                           value="{{ request.form.get('date_of_birth', '') }}">
+                </div>
+                <div class="form-group">
+                    <label for="nationality">Nationality</label>
+                    <input type="text" id="nationality" name="nationality"
+                           value="{{ request.form.get('nationality', '') }}">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="home_address">Home / Previous Address</label>
+                <textarea id="home_address" name="home_address" rows="3">{{ request.form.get('home_address', '') }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="home_country">Home Country</label>
+                <input type="text" id="home_country" name="home_country"
+                       value="{{ request.form.get('home_country', '') }}">
+            </div>
+
+            <!-- ── Student Details ────────────────────────────────────── -->
+            <p class="section-title">Student Details <span style="font-weight:400; font-size:13px; color:var(--muted);">(if applicable)</span></p>
+
+            <div class="form-group">
+                <label for="student_status">Student Status</label>
+                <select id="student_status" name="student_status" onchange="toggleStudent()">
+                    <option value="Non-student"
+                        {% if request.form.get('student_status','Non-student') == 'Non-student' %}selected{% endif %}>
+                        Non-student
+                    </option>
+                    <option value="Student"
+                        {% if request.form.get('student_status','') == 'Student' %}selected{% endif %}>
+                        Student
+                    </option>
+                </select>
+            </div>
+
+            <div id="student_fields" style="display:none;">
+                <div class="form-row two-col">
+                    <div class="form-group">
+                        <label for="student_id">Student ID Number</label>
+                        <input type="text" id="student_id" name="student_id"
+                               value="{{ request.form.get('student_id', '') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="university">University / College</label>
+                        <input type="text" id="university" name="university"
+                               value="{{ request.form.get('university', '') }}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="course_title">Course Title</label>
+                    <input type="text" id="course_title" name="course_title"
+                           value="{{ request.form.get('course_title', '') }}">
+                </div>
+            </div>
+
+            <!-- ── Right to Rent / Work ───────────────────────────────── -->
+            <p class="section-title">Right to Rent / Work</p>
+
+            <div class="form-group">
+                <label for="share_code">Share Code</label>
+                <input type="text" id="share_code" name="share_code"
+                       value="{{ request.form.get('share_code', '') }}"
+                       placeholder="e.g. ABC-123-DEF">
+                <div class="hint">
+                    Your Share Code from the UK Visas and Immigration online service
+                    (gov.uk/prove-right-to-rent). Leave blank if you are a British or
+                    Irish citizen.
+                </div>
+            </div>
+
+            <!-- ── Portal Account ─────────────────────────────────────── -->
+            <p class="section-title">Create Your Tenant Portal Login</p>
+
+            <div class="password-section">
+                <div class="form-row two-col">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="portal_username">Choose a Username <span class="required">*</span></label>
+                        <input type="text" id="portal_username" name="portal_username"
+                               value="{{ request.form.get('portal_username', '') }}"
+                               autocomplete="username" required>
+                    </div>
+                </div>
+                <div class="form-row two-col" style="margin-top:14px;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="portal_password">Password <span class="required">*</span></label>
+                        <input type="password" id="portal_password" name="portal_password"
+                               autocomplete="new-password" required
+                               oninput="checkStrength(this.value)">
+                        <div class="strength-bar"><div class="strength-fill" id="strengthFill"></div></div>
+                        <div class="hint" id="strengthHint" style="margin-top:4px;">At least 8 characters.</div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="portal_password2">Confirm Password <span class="required">*</span></label>
+                        <input type="password" id="portal_password2" name="portal_password2"
+                               autocomplete="new-password" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── GDPR Consent ───────────────────────────────────────── -->
+            <p class="section-title">Data Protection Consent</p>
+
+            <div class="gdpr-box">
+                <p>
+                    Your personal data will be held and processed for the purposes of
+                    managing your tenancy under <strong>GDPR Article 6(1)(b)</strong>
+                    (contractual necessity) and <strong>Article 6(1)(c)</strong>
+                    (legal obligation — Right to Rent checks, council tax notification).
+                    It will not be shared with third parties except where required by law.
+                    You may request access to or deletion of your data at any time.
+                </p>
+                <div class="checkbox-row">
+                    <input type="checkbox" id="gdpr_consent" name="gdpr_consent"
+                           {% if request.form.get('gdpr_consent') %}checked{% endif %} required>
+                    <label for="gdpr_consent">
+                        I have read the above and give my consent for my personal data to
+                        be held and processed for the purposes of managing my tenancy.
+                        <span class="required">*</span>
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-submit">Submit My Details →</button>
+
+        </form>
+    </div><!-- /card -->
+
+</div><!-- /container -->
+
+<script>
+// Show/hide student fields
+function toggleStudent() {
+    const v = document.getElementById('student_status').value;
+    document.getElementById('student_fields').style.display =
+        v === 'Student' ? 'block' : 'none';
+}
+// Run on page load in case of POST error repopulation
+toggleStudent();
+
+// Password strength indicator
+function checkStrength(pw) {
+    const fill = document.getElementById('strengthFill');
+    const hint = document.getElementById('strengthHint');
+    let score = 0;
+    if (pw.length >= 8)  score++;
+    if (pw.length >= 12) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    const pct  = Math.min(score * 20, 100);
+    const color = score <= 1 ? '#e74c3c' : score <= 3 ? '#f39c12' : '#27ae60';
+    fill.style.width = pct + '%';
+    fill.style.background = color;
+    const labels = ['', 'Very weak', 'Weak', 'Fair', 'Strong', 'Very strong'];
+    hint.textContent = pw.length ? (labels[score] || 'Very strong') : 'At least 8 characters.';
+    hint.style.color = color;
+}
+</script>
+</body>
+</html>

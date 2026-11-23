@@ -4,6 +4,7 @@ from flask_login import LoginManager
 from flask_migrate import Migrate
 from config import config
 
+
 db = SQLAlchemy()
 login_manager = LoginManager()
 migrate = Migrate()
@@ -12,7 +13,7 @@ migrate = Migrate()
 def create_app(config_name='default'):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
-
+    
     db.init_app(app)
     login_manager.init_app(app)
     migrate.init_app(app, db)
@@ -35,7 +36,8 @@ def create_app(config_name='default'):
     from app.deposits.routes import deposits_bp
     from app.portal.routes import portal_bp
     from app.admin.routes import admin_bp
-
+    from app.tenants.onboarding_routes import onboarding_bp
+	
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(dashboard_bp, url_prefix='/')
     app.register_blueprint(properties_bp, url_prefix='/properties')
@@ -49,6 +51,7 @@ def create_app(config_name='default'):
     app.register_blueprint(tasks_bp, url_prefix='/tasks')
     app.register_blueprint(deposits_bp, url_prefix='/deposits')
     app.register_blueprint(portal_bp, url_prefix='/portal')
+    app.register_blueprint(onboarding_bp)   # no prefix — /onboard/<token> lives at root
     app.register_blueprint(admin_bp, url_prefix='/admin')
 
     return app

@@ -7,7 +7,11 @@
     <a href="{{ url_for('tenants.index') }}" class="btn btn-secondary">&larr; Back</a>
 </div>
 
-<p class="text-muted">After saving, you will be taken straight to create their contract.</p>
+<p class="text-muted">
+    Enter a name and hit <strong>Save &amp; Add Contract</strong> to continue yourself,
+    or use <strong>Generate Onboarding Link</strong> to send the tenant a form to fill in
+    their own details and create their portal account.
+</p>
 
 <form method="POST" action="{{ url_for('tenants.add') }}">
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; max-width: 860px;">
@@ -141,10 +145,18 @@
 
 </div>
 
-<div class="mt-3">
+<div class="mt-3" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
     <button type="submit" class="btn btn-primary">Save Tenant &amp; Add Contract &rarr;</button>
+
+    <button type="submit" formaction="{{ url_for('tenants.add') }}?onboarding=1"
+            class="btn btn-secondary"
+            style="border-color: var(--green-primary); color: var(--green-primary);"
+            title="Save the tenant's name now, then generate a shareable link so the tenant can complete their own details">
+        🔗 Save &amp; Generate Onboarding Link
+    </button>
+
     <a href="{{ url_for('tenants.index') }}"
-       class="btn btn-secondary" style="margin-left: 8px;">Cancel</a>
+       class="btn btn-secondary" style="margin-left: 4px;">Cancel</a>
 </div>
 
 </form>

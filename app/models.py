@@ -376,3 +376,31 @@ class Message(db.Model):
     body = db.Column(db.Text)
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class TenantOnboardingToken(db.Model):
+    """
+    One-time 24-hour shareable link token for tenant self-onboarding.
+
+    The landlord generates a token from the Add Tenant page after saving
+    the tenant's name.  The token URL is sent to the prospective tenant,
+    who fills in their own details and creates their portal login.
+    Each token can only be used once; after submission `used_at` is set.
+    Tokens expire 24 hours after creation regardless.
+    """
+    __tablename__ = 'tenant_onboarding_tokens'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    token       = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    tenant_id   = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=False)
+    landlord_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at  = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    expires_at  = db.Column(db.DateTime, nullable=False)
+    used_at     = db.Column(db.DateTime, nullable=True, default=None)
+
+    tenant   = db.relationship('Tenant',  foreign_keys=[tenant_id])
+    landlord = db.relationship('User',    foreign_keys=[landlord_id])
+
+    @property
+    def is_valid(self):
+        return self.used_at is None and self.expires_at > datetime.utcnow()
