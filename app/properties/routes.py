@@ -80,7 +80,11 @@ def view(property_id):
         ).first()
         room.active_tenant = active_contract.tenant if active_contract else None
 
-    return render_template('properties/view.html', prop=prop, rooms=rooms)
+    # Vacant rooms — passed to template for the Move Room modal dropdown
+    vacant_rooms = [r for r in rooms if not r.is_occupied]
+
+    return render_template('properties/view.html', prop=prop, rooms=rooms,
+                           vacant_rooms=vacant_rooms)
 
 
 @properties_bp.route('/<int:property_id>/edit', methods=['GET', 'POST'])
@@ -212,14 +216,8 @@ def delete_room(property_id, room_id):
 @login_required
 @landlord_required
 def move_tenant(property_id, room_id):
-    """
-    Move the active tenant from room_id to a different vacant room
-    within the same property.  The contract is updated in-place —
-    dates, rent, and invoices are untouched.
-    """
-    from app.models import Tenant
-
-    prop    = get_property_or_404(property_id)
+    """Move the active tenant from one room to a vacant room, contract in-place."""
+    prop     = get_property_or_404(property_id)
     old_room = Room.query.filter_by(id=room_id, property_id=prop.id).first_or_404()
 
     new_room_id = request.form.get('new_room_id', '').strip()
@@ -235,7 +233,6 @@ def move_tenant(property_id, room_id):
         flash(f'{new_room.room_name} is already occupied.', 'error')
         return redirect(url_for('properties.view', property_id=prop.id))
 
-    # Find the active contract in the old room
     contract = TenantContract.query.filter_by(
         room_id=old_room.id, is_active=True
     ).first()
@@ -243,11 +240,9 @@ def move_tenant(property_id, room_id):
         flash(f'No active contract found for {old_room.room_name}.', 'error')
         return redirect(url_for('properties.view', property_id=prop.id))
 
-    # Perform the move
-    contract.room_id      = new_room.id
-    old_room.is_occupied  = False
-    new_room.is_occupied  = True
-
+    contract.room_id     = new_room.id
+    old_room.is_occupied = False
+    new_room.is_occupied = True
     db.session.commit()
 
     tenant_name = contract.tenant.full_name if contract.tenant else 'Tenant'
@@ -257,4 +252,3 @@ def move_tenant(property_id, room_id):
         'success'
     )
     return redirect(url_for('properties.view', property_id=prop.id))
-
