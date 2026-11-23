@@ -73,16 +73,30 @@
                     <span class="text-muted">—</span>
                 {% endif %}
             </td>
-            <td>
+            <td style="white-space:nowrap;">
                 <a href="{{ url_for('properties.edit_room', property_id=prop.id, room_id=room.id) }}"
                    class="btn btn-secondary btn-sm">Edit</a>
-                {% if not room.is_occupied %}
-                <form method="POST"
-                      action="{{ url_for('properties.delete_room', property_id=prop.id, room_id=room.id) }}"
-                      style="display:inline;"
-                      onsubmit="return confirm('Delete {{ room.room_name }}?');">
-                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                </form>
+
+                {% if room.is_occupied %}
+                    {# ── Move Tenant button — only shown when other vacant rooms exist ── #}
+                    {% set vacant_rooms = rooms | selectattr('is_occupied', 'equalto', false) | list %}
+                    {% if vacant_rooms %}
+                    <button type="button"
+                            class="btn btn-secondary btn-sm"
+                            style="border-color: var(--blue, #2980b9); color: var(--blue, #2980b9);"
+                            onclick="openMoveModal({{ room.id }}, '{{ room.room_name | e }}',
+                                                   {{ vacant_rooms | map(attribute='id') | list }},
+                                                   {{ vacant_rooms | map(attribute='room_name') | list | tojson }})">
+                        ↔ Move Room
+                    </button>
+                    {% endif %}
+                {% else %}
+                    <form method="POST"
+                          action="{{ url_for('properties.delete_room', property_id=prop.id, room_id=room.id) }}"
+                          style="display:inline;"
+                          onsubmit="return confirm('Delete {{ room.room_name }}?');">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
                 {% endif %}
             </td>
         </tr>
@@ -109,5 +123,68 @@
     </form>
 </div>
 {% endif %}
+
+
+<!-- ── Move Tenant Modal ──────────────────────────────────────────────────── -->
+<div id="moveModal" style="
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,.45); z-index:1000;
+    align-items:center; justify-content:center;">
+
+    <div style="background:var(--surface,#fff); border-radius:8px;
+                padding:28px 32px; max-width:420px; width:90%;
+                box-shadow: 0 8px 32px rgba(0,0,0,.2);">
+
+        <h3 style="margin:0 0 6px;">Move Tenant</h3>
+        <p id="moveModalDesc" style="font-size:14px; color:var(--text-secondary); margin:0 0 20px;"></p>
+
+        <form id="moveForm" method="POST">
+            <div class="form-group">
+                <label for="new_room_id">Move to room</label>
+                <select id="new_room_id" name="new_room_id" required>
+                    <option value="">— select vacant room —</option>
+                </select>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button type="submit" class="btn btn-primary">Confirm Move</button>
+                <button type="button" class="btn btn-secondary"
+                        onclick="closeMoveModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openMoveModal(roomId, roomName, vacantIds, vacantNames) {
+    document.getElementById('moveModalDesc').textContent =
+        'Moving tenant from ' + roomName + '. Select their new room below. ' +
+        'The contract, rent and invoices will stay the same.';
+
+    const sel = document.getElementById('new_room_id');
+    sel.innerHTML = '<option value="">— select vacant room —</option>';
+    vacantIds.forEach((id, i) => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = vacantNames[i];
+        sel.appendChild(opt);
+    });
+
+    document.getElementById('moveForm').action =
+        '/properties/{{ prop.id }}/rooms/' + roomId + '/move-tenant';
+
+    const modal = document.getElementById('moveModal');
+    modal.style.display = 'flex';
+}
+
+function closeMoveModal() {
+    document.getElementById('moveModal').style.display = 'none';
+}
+
+// Close on backdrop click
+document.getElementById('moveModal').addEventListener('click', function(e) {
+    if (e.target === this) closeMoveModal();
+});
+</script>
 
 {% endblock %}

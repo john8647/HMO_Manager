@@ -206,3 +206,55 @@ def delete_room(property_id, room_id):
     db.session.commit()
     flash(f'Room "{room.room_name}" deleted.', 'success')
     return redirect(url_for('properties.view', property_id=prop.id))
+
+
+@properties_bp.route('/<int:property_id>/rooms/<int:room_id>/move-tenant', methods=['POST'])
+@login_required
+@landlord_required
+def move_tenant(property_id, room_id):
+    """
+    Move the active tenant from room_id to a different vacant room
+    within the same property.  The contract is updated in-place —
+    dates, rent, and invoices are untouched.
+    """
+    from app.models import Tenant
+
+    prop    = get_property_or_404(property_id)
+    old_room = Room.query.filter_by(id=room_id, property_id=prop.id).first_or_404()
+
+    new_room_id = request.form.get('new_room_id', '').strip()
+    if not new_room_id:
+        flash('Please select a destination room.', 'error')
+        return redirect(url_for('properties.view', property_id=prop.id))
+
+    new_room = Room.query.filter_by(
+        id=int(new_room_id), property_id=prop.id
+    ).first_or_404()
+
+    if new_room.is_occupied:
+        flash(f'{new_room.room_name} is already occupied.', 'error')
+        return redirect(url_for('properties.view', property_id=prop.id))
+
+    # Find the active contract in the old room
+    contract = TenantContract.query.filter_by(
+        room_id=old_room.id, is_active=True
+    ).first()
+    if not contract:
+        flash(f'No active contract found for {old_room.room_name}.', 'error')
+        return redirect(url_for('properties.view', property_id=prop.id))
+
+    # Perform the move
+    contract.room_id      = new_room.id
+    old_room.is_occupied  = False
+    new_room.is_occupied  = True
+
+    db.session.commit()
+
+    tenant_name = contract.tenant.full_name if contract.tenant else 'Tenant'
+    flash(
+        f'{tenant_name} moved from {old_room.room_name} to {new_room.room_name}. '
+        f'Contract updated — all other details unchanged.',
+        'success'
+    )
+    return redirect(url_for('properties.view', property_id=prop.id))
+
