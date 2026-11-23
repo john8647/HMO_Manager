@@ -81,7 +81,9 @@
                     <button type="button"
                             class="btn btn-secondary btn-sm"
                             style="border-color:#2980b9; color:#2980b9;"
-                            onclick="openMoveModal({{ room.id }}, {{ room.room_name | tojson }})">
+                            data-room-id="{{ room.id }}"
+                            data-room-name="{{ room.room_name | e }}"
+                            onclick="openMoveModal(this)">
                         ↔ Move Room
                     </button>
                 {% endif %}
@@ -175,7 +177,10 @@
 <script>
 var propId = {{ prop.id }};
 
-function openMoveModal(roomId, roomName) {
+function openMoveModal(btn) {
+    var roomId   = btn.getAttribute('data-room-id');
+    var roomName = btn.getAttribute('data-room-name');
+
     document.getElementById('moveModalDesc').textContent =
         'Moving tenant out of ' + roomName + '. ' +
         'The contract, rent and invoices stay exactly the same.';
@@ -183,7 +188,6 @@ function openMoveModal(roomId, roomName) {
     document.getElementById('moveForm').action =
         '/properties/' + propId + '/rooms/' + roomId + '/move-tenant';
 
-    // Reset dropdown
     document.getElementById('new_room_id').selectedIndex = 0;
 
     document.getElementById('moveModal').classList.add('open');
