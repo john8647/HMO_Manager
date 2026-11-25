@@ -28,6 +28,9 @@
                     {{ prop.address_line1 }}
                     {% if prop.address_line2 %}, {{ prop.address_line2 }}{% endif %}
                 </a>
+                {% if not prop.is_mine %}
+                    <span class="badge badge-grey" style="font-size:11px; margin-left:6px;">other landlord</span>
+                {% endif %}
             </td>
             <td>{{ prop.postcode }}</td>
             <td>{{ prop.room_count }}</td>
@@ -43,8 +46,10 @@
             <td>
                 <a href="{{ url_for('properties.view', property_id=prop.id) }}"
                    class="btn btn-secondary btn-sm">View</a>
+                {% if prop.is_mine %}
                 <a href="{{ url_for('properties.edit', property_id=prop.id) }}"
                    class="btn btn-secondary btn-sm">Edit</a>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}

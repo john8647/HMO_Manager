@@ -7,11 +7,18 @@ from app.models import Property, Room, TenantContract
 properties_bp = Blueprint('properties', __name__)
 
 
-def get_property_or_404(property_id):
-    prop = Property.query.filter_by(
-        id=property_id, user_id=current_user.id
-    ).first_or_404()
-    return prop
+def get_property_or_404(property_id, require_owner=True):
+    """
+    Fetch a property by id.
+    - require_owner=True  → property must belong to current_user (edit/delete operations)
+    - require_owner=False → admins may access any property (view-only operations)
+    """
+    if require_owner or current_user.role != 'admin':
+        return Property.query.filter_by(
+            id=property_id, user_id=current_user.id
+        ).first_or_404()
+    else:
+        return Property.query.filter_by(id=property_id).first_or_404()
 
 
 # ── Properties ──────────────────────────────────────────────────────────────
@@ -27,10 +34,11 @@ def index():
             user_id=current_user.id
         ).order_by(Property.address_line1).all()
 
-    # Attach room and tenant counts for display
     for prop in properties:
-        prop.room_count = prop.rooms.count()
+        prop.room_count     = prop.rooms.count()
         prop.occupied_count = prop.rooms.filter_by(is_occupied=True).count()
+        # Flag so the template knows whether to show Edit button
+        prop.is_mine = (prop.user_id == current_user.id)
 
     return render_template('properties/index.html', properties=properties)
 
@@ -70,28 +78,28 @@ def add():
 @login_required
 @landlord_required
 def view(property_id):
-    prop = get_property_or_404(property_id)
+    # Admins may view any property (read-only); landlords see only their own
+    prop  = get_property_or_404(property_id, require_owner=False)
     rooms = prop.rooms.order_by(Room.room_name).all()
 
-    # Attach active tenant info to each room
     for room in rooms:
-        active_contract = TenantContract.query.filter_by(
+        active_contract    = TenantContract.query.filter_by(
             room_id=room.id, is_active=True
         ).first()
         room.active_tenant = active_contract.tenant if active_contract else None
 
-    # Vacant rooms — passed to template for the Move Room modal dropdown
     vacant_rooms = [r for r in rooms if not r.is_occupied]
+    is_mine      = (prop.user_id == current_user.id)
 
     return render_template('properties/view.html', prop=prop, rooms=rooms,
-                           vacant_rooms=vacant_rooms)
+                           vacant_rooms=vacant_rooms, is_mine=is_mine)
 
 
 @properties_bp.route('/<int:property_id>/edit', methods=['GET', 'POST'])
 @login_required
 @landlord_required
 def edit(property_id):
-    prop = get_property_or_404(property_id)
+    prop = get_property_or_404(property_id, require_owner=True)  # owner only
 
     if request.method == 'POST':
         prop.address_line1 = request.form.get('address_line1', '').strip()
@@ -115,7 +123,7 @@ def edit(property_id):
 @login_required
 @landlord_required
 def delete(property_id):
-    prop = get_property_or_404(property_id)
+    prop = get_property_or_404(property_id, require_owner=True)  # owner only
 
     if prop.rooms.count() > 0:
         flash('Cannot delete a property that has rooms. Remove all rooms first.', 'error')
@@ -133,7 +141,7 @@ def delete(property_id):
 @login_required
 @landlord_required
 def add_room(property_id):
-    prop = get_property_or_404(property_id)
+    prop = get_property_or_404(property_id, require_owner=True)  # owner only
 
     if request.method == 'POST':
         room_name = request.form.get('room_name', '').strip()
@@ -142,7 +150,6 @@ def add_room(property_id):
             flash('Room name is required.', 'error')
             return render_template('properties/add_room.html', prop=prop)
 
-        # Check for duplicate room name in this property
         existing = Room.query.filter_by(
             property_id=prop.id, room_name=room_name
         ).first()
@@ -163,7 +170,7 @@ def add_room(property_id):
 @login_required
 @landlord_required
 def edit_room(property_id, room_id):
-    prop = get_property_or_404(property_id)
+    prop = get_property_or_404(property_id, require_owner=True)  # owner only
     room = Room.query.filter_by(id=room_id, property_id=prop.id).first_or_404()
 
     if request.method == 'POST':
@@ -199,7 +206,7 @@ def vacant_rooms(property_id):
 @login_required
 @landlord_required
 def delete_room(property_id, room_id):
-    prop = get_property_or_404(property_id)
+    prop = get_property_or_404(property_id, require_owner=True)  # owner only
     room = Room.query.filter_by(id=room_id, property_id=prop.id).first_or_404()
 
     if room.is_occupied:
@@ -217,7 +224,7 @@ def delete_room(property_id, room_id):
 @landlord_required
 def move_tenant(property_id, room_id):
     """Move the active tenant from one room to a vacant room, contract in-place."""
-    prop     = get_property_or_404(property_id)
+    prop     = get_property_or_404(property_id, require_owner=True)  # owner only
     old_room = Room.query.filter_by(id=room_id, property_id=prop.id).first_or_404()
 
     new_room_id = request.form.get('new_room_id', '').strip()

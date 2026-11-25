@@ -5,14 +5,26 @@
 <div class="flex-between mb-2">
     <h1>{{ prop.address_line1 }}</h1>
     <div style="display:flex; gap:8px;">
+        {% if is_mine %}
         <a href="{{ url_for('properties.add_room', property_id=prop.id) }}"
            class="btn btn-primary">+ Add Room</a>
         <a href="{{ url_for('properties.edit', property_id=prop.id) }}"
            class="btn btn-secondary">Edit Property</a>
+        {% endif %}
         <a href="{{ url_for('properties.index') }}"
            class="btn btn-secondary">&larr; All Properties</a>
     </div>
 </div>
+
+{% if not is_mine %}
+<div class="card" style="max-width:520px; margin-bottom:20px;
+     border-top-color: var(--yellow-primary, #f39c12); background: #fffbf0;">
+    <p style="margin:0; font-size:14px; color: #7a5c00;">
+        👁 You are viewing this property in <strong>read-only</strong> mode.
+        Only the owning landlord can make changes.
+    </p>
+</div>
+{% endif %}
 
 <!-- Property details card -->
 <div class="card" style="max-width: 520px; margin-bottom: 28px;">
@@ -50,7 +62,7 @@
             <th>Room</th>
             <th>Status</th>
             <th>Current Tenant</th>
-            <th>Actions</th>
+            {% if is_mine %}<th>Actions</th>{% endif %}
         </tr>
     </thead>
     <tbody>
@@ -73,6 +85,7 @@
                     <span class="text-muted">—</span>
                 {% endif %}
             </td>
+            {% if is_mine %}
             <td style="white-space:nowrap;">
                 <a href="{{ url_for('properties.edit_room', property_id=prop.id, room_id=room.id) }}"
                    class="btn btn-secondary btn-sm">Edit</a>
@@ -97,6 +110,7 @@
                     </form>
                 {% endif %}
             </td>
+            {% endif %}
         </tr>
         {% endfor %}
     </tbody>
@@ -104,14 +118,18 @@
 {% else %}
 <div class="card" style="max-width:400px;">
     <div class="card-title">No rooms yet</div>
+    {% if is_mine %}
     <p style="margin: 8px 0 16px;">Add rooms to this property to assign tenants.</p>
     <a href="{{ url_for('properties.add_room', property_id=prop.id) }}"
        class="btn btn-primary">+ Add Room</a>
+    {% else %}
+    <p style="margin: 8px 0 0;">This property has no rooms yet.</p>
+    {% endif %}
 </div>
 {% endif %}
 
-<!-- Danger zone -->
-{% if rooms|length == 0 %}
+<!-- Danger zone — owner only -->
+{% if is_mine and rooms|length == 0 %}
 <div style="margin-top: 40px; border-top: 1px solid var(--border); padding-top: 20px;">
     <h3 style="color: var(--error);">Danger Zone</h3>
     <form method="POST"
@@ -123,29 +141,15 @@
 {% endif %}
 
 
-<!-- ── Move Tenant Modal ──────────────────────────────────────────────────── -->
+<!-- ── Move Tenant Modal (owner only) ────────────────────────────────────── -->
+{% if is_mine %}
 <style>
-#moveModal {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,.5);
-    z-index: 1000;
-}
-#moveModal.open {
-    display: block;
-}
+#moveModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; }
+#moveModal.open { display:block; }
 #moveModalInner {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--surface, #fff);
-    border-radius: 8px;
-    padding: 28px 32px;
-    max-width: 420px;
-    width: 90%;
-    box-shadow: 0 8px 32px rgba(0,0,0,.25);
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    background:var(--surface,#fff); border-radius:8px; padding:28px 32px;
+    max-width:420px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,.25);
 }
 </style>
 
@@ -153,7 +157,6 @@
     <div id="moveModalInner">
         <h3 style="margin:0 0 8px;">Move Tenant</h3>
         <p id="moveModalDesc" style="font-size:14px; color:var(--text-secondary,#666); margin:0 0 20px;"></p>
-
         <form id="moveForm" method="POST">
             <div class="form-group">
                 <label for="new_room_id">Move to vacant room</label>
@@ -164,11 +167,9 @@
                     {% endfor %}
                 </select>
             </div>
-
             <div style="display:flex; gap:10px; margin-top:20px;">
                 <button type="submit" class="btn btn-primary">Confirm Move</button>
-                <button type="button" class="btn btn-secondary"
-                        onclick="closeMoveModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="closeMoveModal()">Cancel</button>
             </div>
         </form>
     </div>
@@ -176,31 +177,23 @@
 
 <script>
 var propId = {{ prop.id }};
-
 function openMoveModal(btn) {
     var roomId   = btn.getAttribute('data-room-id');
     var roomName = btn.getAttribute('data-room-name');
-
     document.getElementById('moveModalDesc').textContent =
-        'Moving tenant out of ' + roomName + '. ' +
-        'The contract, rent and invoices stay exactly the same.';
-
+        'Moving tenant out of ' + roomName + '. The contract, rent and invoices stay exactly the same.';
     document.getElementById('moveForm').action =
         '/properties/' + propId + '/rooms/' + roomId + '/move-tenant';
-
     document.getElementById('new_room_id').selectedIndex = 0;
-
     document.getElementById('moveModal').classList.add('open');
 }
-
 function closeMoveModal() {
     document.getElementById('moveModal').classList.remove('open');
 }
-
-// Close on backdrop click (outside the inner box)
 document.getElementById('moveModal').addEventListener('click', function(e) {
     if (e.target === this) closeMoveModal();
 });
 </script>
+{% endif %}
 
 {% endblock %}
