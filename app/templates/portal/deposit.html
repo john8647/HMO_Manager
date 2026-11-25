@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}My Deposit{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-2">
+    <h1>My Deposit</h1>
+    <a href="{{ url_for('portal.index') }}" class="btn btn-secondary">&larr; My Tenancy</a>
+</div>
+
+{% if not deposit %}
+<div class="card" style="max-width:500px;">
+    <div class="card-title">No Deposit Record</div>
+    <p style="margin:0; color:var(--text-secondary);">
+        No deposit has been recorded for your tenancy yet.
+        Please contact your landlord if you believe this is an error.
+    </p>
+</div>
+
+{% else %}
+
+<!-- Status badge -->
+<div style="margin-bottom:24px;">
+    {% if deposit.status == 'protected' %}
+        <span class="badge badge-green" style="font-size:14px; padding:4px 14px;">Protected</span>
+    {% elif deposit.status == 'pending' %}
+        <span class="badge badge-yellow" style="font-size:14px; padding:4px 14px;">Pending Registration</span>
+    {% elif deposit.status == 'deducting' %}
+        <span class="badge badge-red" style="font-size:14px; padding:4px 14px;">Deductions Being Assessed</span>
+    {% elif deposit.status == 'paid' %}
+        <span class="badge badge-grey" style="font-size:14px; padding:4px 14px;">Returned to Tenant</span>
+    {% elif deposit.status == 'withdrawn' %}
+        <span class="badge badge-red" style="font-size:14px; padding:4px 14px;">Withdrawn — Breach of Contract</span>
+    {% elif deposit.status == 'claimed' %}
+        <span class="badge badge-grey" style="font-size:14px; padding:4px 14px;">Claimed via DPS</span>
+    {% endif %}
+    <span style="margin-left:12px; font-size:13px; color:var(--text-secondary);">
+        Deposit ID: DEP-{{ '%04d'|format(deposit.id) }}
+    </span>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:28px;">
+
+    <!-- Deposit Details -->
+    <div class="card">
+        <div class="card-title">Deposit Details</div>
+        <table style="margin:0;">
+            <tr>
+                <td style="color:var(--text-secondary); width:160px;">Amount</td>
+                <td>
+                    <strong style="font-size:20px;">
+                        £{{ '%.2f'|format(deposit.amount) }}
+                    </strong>
+                </td>
+            </tr>
+            <tr>
+                <td style="color:var(--text-secondary);">Date Received</td>
+                <td>
+                    {{ deposit.date_received.strftime('%d %b %Y')
+                       if deposit.date_received else '—' }}
+                </td>
+            </tr>
+            {% if contract %}
+            <tr>
+                <td style="color:var(--text-secondary);">Property</td>
+                <td>
+                    {{ contract.property.address_line1 }},
+                    {{ contract.room.room_name }}<br>
+                    <span style="font-size:12px; color:var(--text-secondary);">
+                        {{ contract.start_date.strftime('%d %b %Y') }}
+                        {% if contract.end_date %}
+                            → {{ contract.end_date.strftime('%d %b %Y') }}
+                        {% else %}
+                            → ongoing
+                        {% endif %}
+                    </span>
+                </td>
+            </tr>
+            {% endif %}
+        </table>
+    </div>
+
+    <!-- DPS Registration -->
+    <div class="card">
+        <div class="card-title">DPS Registration</div>
+        <table style="margin:0;">
+            <tr>
+                <td style="color:var(--text-secondary); width:160px;">Scheme</td>
+                <td>{{ deposit.dps_scheme or '—' }}</td>
+            </tr>
+            <tr>
+                <td style="color:var(--text-secondary);">Reference No.</td>
+                <td>
+                    {% if deposit.dps_reference %}
+                        <code>{{ deposit.dps_reference }}</code>
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td style="color:var(--text-secondary);">Certificate</td>
+                <td>
+                    {% if has_file %}
+                        <a href="{{ url_for('portal.deposit_download') }}"
+                           class="btn btn-primary btn-sm"
+                           style="background:var(--green-dark); border-color:var(--green-dark);">
+                            &#8595; Download Certificate
+                        </a>
+                    {% else %}
+                        <span class="text-muted">Not yet uploaded</span>
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+    </div>
+
+</div>
+
+<!-- Deduction / Return Details (only shown when relevant) -->
+{% if deposit.status in ('deducting', 'paid', 'withdrawn', 'claimed') %}
+<div class="card" style="max-width:600px; margin-bottom:28px;
+     border-top-color:var(--error);">
+    <div class="card-title">Deduction / Return Details</div>
+    <table style="margin:0;">
+        <tr>
+            <td style="color:var(--text-secondary); width:200px;">
+                Early Surrender Accepted
+            </td>
+            <td>
+                {% if deposit.surrender_accepted %}
+                    <span class="badge badge-green">Yes</span>
+                    {% if deposit.surrender_date %}
+                        — agreed surrender date:
+                        {{ deposit.surrender_date.strftime('%d %b %Y') }}
+                    {% endif %}
+                {% else %}
+                    <span class="badge badge-grey">No</span>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Deduction Amount</td>
+            <td>
+                {% if deposit.deduction_amount %}
+                    <strong style="color:var(--error);">
+                        £{{ '%.2f'|format(deposit.deduction_amount) }}
+                    </strong>
+                {% else %}—{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Reason for Deduction</td>
+            <td>{{ deposit.deduction_reason or '—' }}</td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Amount Returned</td>
+            <td>
+                {% if deposit.amount_returned %}
+                    <strong style="color:var(--green-dark);">
+                        £{{ '%.2f'|format(deposit.amount_returned) }}
+                    </strong>
+                {% else %}—{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td style="color:var(--text-secondary);">Date Returned</td>
+            <td>
+                {{ deposit.returned_date.strftime('%d %b %Y')
+                   if deposit.returned_date else '—' }}
+            </td>
+        </tr>
+    </table>
+</div>
+{% endif %}
+
+<!-- Notes (landlord-visible notes, file tag stripped) -->
+{% if clean_notes %}
+<div class="card" style="max-width:600px; margin-bottom:28px;">
+    <div class="card-title">Notes</div>
+    <p style="margin:0; font-size:14px;">{{ clean_notes }}</p>
+</div>
+{% endif %}
+
+{% endif %}{# end if deposit #}
+
+{% endblock %}

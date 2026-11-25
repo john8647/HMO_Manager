@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 import os
 from app import db
-from app.models import Tenant, TenantContract, Transaction, Task, Property, Room, Invoice, User
+from app.models import Tenant, TenantContract, Transaction, Task, Property, Room, Invoice, User, Deposit
 
 portal_bp = Blueprint('portal', __name__)
 
@@ -23,9 +23,12 @@ portal_bp = Blueprint('portal', __name__)
 
 TENANT_CATEGORIES = [
     ('damage',         'Damage Report',      'Damage to the building or fixtures'),
-    ('neighbour',      'Neighbour Issue',     'Problems involving other residents or neighbours'),
-    ('awareness',      'Awareness',           'Just for awareness — no action required'),
-    ('correspondence', 'Correspondence',      'Admin correspondence or financial query'),
+    ('neighbour',      'Neighbour Issue',
+     'Problems involving other residents or neighbours'),
+    ('awareness',      'Awareness',
+     'Just for awareness — no action required'),
+    ('correspondence', 'Correspondence',
+     'Admin correspondence or financial query'),
     ('request',        'Management Request',  'General management request'),
     ('contract_query', 'Contract Query',      'Contracts related request'),
 ]
@@ -88,14 +91,14 @@ def _tx_sum(tenant_id, credit_debit, types):
 @login_required
 @tenant_required
 def index():
-    tenant   = _get_tenant()
+    tenant = _get_tenant()
     contract = _active_contract(tenant)
-    today    = date.today()
+    today = date.today()
 
-    rent_balance  = _tx_sum(tenant.id, 'db', ['Rent', 'Advanced Rent']) \
-                  - _tx_sum(tenant.id, 'cr', ['Rent', 'Advanced Rent'])
-    bill_balance  = _tx_sum(tenant.id, 'db', ['Bills']) \
-                  - _tx_sum(tenant.id, 'cr', ['Bills'])
+    rent_balance = _tx_sum(tenant.id, 'db', ['Rent', 'Advanced Rent']) \
+        - _tx_sum(tenant.id, 'cr', ['Rent', 'Advanced Rent'])
+    bill_balance = _tx_sum(tenant.id, 'db', ['Bills']) \
+        - _tx_sum(tenant.id, 'cr', ['Bills'])
     total_balance = rent_balance + bill_balance
 
     # Public tasks for this tenant's property
@@ -149,7 +152,7 @@ def profile():
 @login_required
 @tenant_required
 def contracts():
-    tenant    = _get_tenant()
+    tenant = _get_tenant()
     contracts = TenantContract.query.filter_by(
         tenant_id=tenant.id
     ).order_by(TenantContract.start_date.desc()).all()
@@ -157,8 +160,8 @@ def contracts():
 
     # Flag whether a pending end-contract request exists for this tenant
     has_pending_end_request = Task.query.filter(
-        Task.tenant_id  == tenant.id,
-        Task.category   == 'contract_query',
+        Task.tenant_id == tenant.id,
+        Task.category == 'contract_query',
         Task.status.in_(['open', 'in_progress']),
         Task.title.like('End Contract Request%'),
     ).first() is not None
@@ -174,7 +177,7 @@ def contracts():
 @login_required
 @tenant_required
 def extend_contract(contract_id):
-    tenant   = _get_tenant()
+    tenant = _get_tenant()
     contract = TenantContract.query.filter_by(
         id=contract_id, tenant_id=tenant.id, is_active=True
     ).first_or_404()
@@ -183,7 +186,7 @@ def extend_contract(contract_id):
 
     if request.method == 'POST':
         extend_months = request.form.get('extend_months', '').strip()
-        end_date_s    = request.form.get('end_date', '').strip()
+        end_date_s = request.form.get('end_date', '').strip()
 
         # Validate months
         months = None
@@ -260,7 +263,7 @@ def extend_contract(contract_id):
 
     # Minimum date for custom end: next rent due + 1 day, or tomorrow
     min_end = (contract.next_rent_due + timedelta(days=1)) \
-              if contract.next_rent_due else (today + timedelta(days=1))
+        if contract.next_rent_due else (today + timedelta(days=1))
 
     return render_template('portal/extend_contract.html',
                            tenant=tenant,
@@ -275,7 +278,7 @@ def extend_contract(contract_id):
 @login_required
 @tenant_required
 def end_contract_request(contract_id):
-    tenant   = _get_tenant()
+    tenant = _get_tenant()
     contract = TenantContract.query.filter_by(
         id=contract_id, tenant_id=tenant.id, is_active=True
     ).first_or_404()
@@ -284,8 +287,8 @@ def end_contract_request(contract_id):
 
     # Check whether a pending end-contract task already exists for this contract
     existing_request = Task.query.filter(
-        Task.tenant_id   == tenant.id,
-        Task.category    == 'contract_query',
+        Task.tenant_id == tenant.id,
+        Task.category == 'contract_query',
         Task.status.in_(['open', 'in_progress']),
         Task.title.like('End Contract Request%'),
     ).first()
@@ -300,9 +303,9 @@ def end_contract_request(contract_id):
         return redirect(url_for('portal.contracts'))
 
     if request.method == 'POST':
-        notice_type    = request.form.get('notice_type', '').strip()
+        notice_type = request.form.get('notice_type', '').strip()
         surrender_date_s = request.form.get('surrender_date', '').strip()
-        notes          = request.form.get('notes', '').strip()
+        notes = request.form.get('notes', '').strip()
 
         if notice_type not in ('notice', 'surrender'):
             flash('Please select a notice type.', 'error')
@@ -317,7 +320,8 @@ def end_contract_request(contract_id):
                 return redirect(url_for('portal.end_contract_request',
                                         contract_id=contract_id))
             try:
-                surrender_date = datetime.strptime(surrender_date_s, '%Y-%m-%d').date()
+                surrender_date = datetime.strptime(
+                    surrender_date_s, '%Y-%m-%d').date()
                 if surrender_date <= today:
                     flash('Surrender date must be in the future.', 'error')
                     return redirect(url_for('portal.end_contract_request',
@@ -374,20 +378,20 @@ def end_contract_request(contract_id):
 @login_required
 @tenant_required
 def rent_roll():
-    tenant          = _get_tenant()
+    tenant = _get_tenant()
     active_contract = _active_contract(tenant)
-    contract        = active_contract or _latest_contract(tenant)
-    today           = date.today()
+    contract = active_contract or _latest_contract(tenant)
+    today = date.today()
 
     if not contract:
         # Truly no contract at all
         return render_template('portal/rent_roll.html',
                                tenant=tenant, row=None, today=today)
 
-    rent_balance  = _tx_sum(tenant.id, 'db', ['Rent', 'Advanced Rent']) \
-                  - _tx_sum(tenant.id, 'cr', ['Rent', 'Advanced Rent'])
-    bill_balance  = _tx_sum(tenant.id, 'db', ['Bills']) \
-                  - _tx_sum(tenant.id, 'cr', ['Bills'])
+    rent_balance = _tx_sum(tenant.id, 'db', ['Rent', 'Advanced Rent']) \
+        - _tx_sum(tenant.id, 'cr', ['Rent', 'Advanced Rent'])
+    bill_balance = _tx_sum(tenant.id, 'db', ['Bills']) \
+        - _tx_sum(tenant.id, 'cr', ['Bills'])
     total_balance = rent_balance + bill_balance
 
     # All transactions (more rows since contract may be closed)
@@ -433,7 +437,7 @@ def rent_roll():
 @login_required
 @tenant_required
 def tasks():
-    tenant   = _get_tenant()
+    tenant = _get_tenant()
     contract = _active_contract(tenant)
 
     # Tenant's own tasks
@@ -463,7 +467,7 @@ def tasks():
 @login_required
 @tenant_required
 def add_task():
-    tenant   = _get_tenant()
+    tenant = _get_tenant()
     contract = _active_contract(tenant)
 
     if not contract:
@@ -471,12 +475,12 @@ def add_task():
         return redirect(url_for('portal.tasks'))
 
     if request.method == 'POST':
-        title       = request.form.get('title', '').strip()
+        title = request.form.get('title', '').strip()
         description = request.form.get('description', '').strip()
-        category    = request.form.get('category', '').strip()
-        priority    = request.form.get('priority', 'medium').strip()
-        link_room   = request.form.get('link_room') == 'on'
-        due_date_s  = request.form.get('due_date', '').strip()
+        category = request.form.get('category', '').strip()
+        priority = request.form.get('priority', 'medium').strip()
+        link_room = request.form.get('link_room') == 'on'
+        due_date_s = request.form.get('due_date', '').strip()
 
         # Validate category — tenants may only use the allowed set
         allowed_cats = {c[0] for c in TENANT_CATEGORIES}
@@ -529,7 +533,7 @@ def add_task():
 @login_required
 @tenant_required
 def invoices():
-    tenant   = _get_tenant()
+    tenant = _get_tenant()
     invoices = Invoice.query.filter_by(
         tenant_id=tenant.id
     ).order_by(Invoice.issue_date.desc()).all()
@@ -543,7 +547,7 @@ def invoices():
 @tenant_required
 def download_invoice_pdf(invoice_id):
     """Serve an invoice PDF to the tenant who owns it."""
-    tenant  = _get_tenant()
+    tenant = _get_tenant()
     invoice = Invoice.query.filter_by(
         id=invoice_id, tenant_id=tenant.id
     ).first_or_404()
@@ -573,3 +577,69 @@ def download_invoice_pdf(invoice_id):
     except Exception as e:
         flash('PDF is not available yet. Please contact your landlord.', 'error')
         return redirect(url_for('portal.invoices'))
+
+
+# ── My Deposit ────────────────────────────────────────────────────────────────
+
+@portal_bp.route('/deposit')
+@login_required
+@tenant_required
+def deposit():
+    """Show the tenant's most recent deposit record (read-only)."""
+    tenant = _get_tenant()
+
+    # Tenants typically have one deposit; show the most recent if multiple exist
+    dep = Deposit.query.filter_by(
+        tenant_id=tenant.id
+    ).order_by(Deposit.date_received.desc()).first()
+
+    # Resolve contract manually (Deposit model has no backref defined)
+    contract = None
+    if dep and dep.contract_id:
+        contract = TenantContract.query.get(dep.contract_id)
+
+    # Parse file reference from notes field
+    import re
+    has_file = False
+    if dep and dep.notes:
+        has_file = bool(re.search(r'\|\s*file:\S+', dep.notes))
+
+    # Strip file tag from notes for display
+    clean_notes = ''
+    if dep and dep.notes:
+        clean_notes = re.sub(r'\s*\|\s*file:\S+', '', dep.notes).strip()
+
+    return render_template('portal/deposit.html',
+                           tenant=tenant,
+                           deposit=dep,
+                           contract=contract,
+                           has_file=has_file,
+                           clean_notes=clean_notes)
+
+
+@portal_bp.route('/deposit/download')
+@login_required
+@tenant_required
+def deposit_download():
+    """Serve the DPS certificate file attached by the landlord."""
+    import re
+    from flask import send_from_directory
+    tenant = _get_tenant()
+
+    dep = Deposit.query.filter_by(
+        tenant_id=tenant.id
+    ).order_by(Deposit.date_received.desc()).first()
+
+    if not dep or not dep.notes:
+        flash('No deposit certificate file is available.', 'error')
+        return redirect(url_for('portal.deposit'))
+
+    match = re.search(r'\|\s*file:(\S+)', dep.notes)
+    if not match:
+        flash('No deposit certificate file is available.', 'error')
+        return redirect(url_for('portal.deposit'))
+
+    filename = match.group(1)
+    UPLOAD_FOLDER = os.path.abspath(os.path.join(
+        'app', 'static', 'uploads', 'deposits'))
+    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
