@@ -109,16 +109,23 @@ def add_landlord():
 
 
 # ── Invite tenant portal user ─────────────────────────────────────────────────
-
 @admin_bp.route('/tenant/invite', methods=['GET', 'POST'])
 @login_required
-@landlord_required
-@admin_required
+@landlord_required          # landlords AND admins; NOT admin-only any more
 def invite_tenant():
-    # Only tenants without a portal account
-    unlinked_tenants = Tenant.query.filter_by(
-        portal_user_id=None
-    ).order_by(Tenant.last_name).all()
+    # Scope the tenant list to this user's own tenants (admin sees all)
+    if current_user.role == 'admin':
+        unlinked_tenants = Tenant.query.filter_by(
+            portal_user_id=None
+        ).order_by(Tenant.last_name).all()
+    else:
+        unlinked_tenants = Tenant.query.filter_by(
+            user_id=current_user.id,
+            portal_user_id=None,
+        ).order_by(Tenant.last_name).all()
+
+    # Allow pre-selecting a tenant via ?tenant_id=N (e.g. from tenant view page)
+    preselect = request.args.get('tenant_id', '')
 
     if request.method == 'POST':
         tenant_id = request.form.get('tenant_id', '').strip()
@@ -151,32 +158,38 @@ def invite_tenant():
             return render_template('admin/invite_tenant.html',
                                    unlinked_tenants=unlinked_tenants,
                                    username=username, email=email,
-                                   selected_tenant_id=tenant_id)
+                                   selected_tenant_id=tenant_id,
+                                   is_admin=(current_user.role == 'admin'))
+
+        # Verify the chosen tenant belongs to this landlord (security check)
+        tenant = Tenant.query.get_or_404(int(tenant_id))
+        if current_user.role != 'admin' and tenant.user_id != current_user.id:
+            flash('You can only invite your own tenants.', 'error')
+            return redirect(url_for('admin.invite_tenant'))
 
         # Create portal user
-        portal_user = User(
-            username=username,
-            email=email,
-            role='tenant',
-        )
+        portal_user = User(username=username, email=email, role='tenant')
         portal_user.set_password(password)
         db.session.add(portal_user)
         db.session.flush()
 
-        # Link to tenant record
-        tenant = Tenant.query.get_or_404(int(tenant_id))
         tenant.portal_user_id = portal_user.id
-
         db.session.commit()
+
         flash(
             f'Portal account created for {tenant.full_name}. '
-            f'They can log in at /auth/login with username "{username}".',
+            f'They can log in with username "{username}".',
             'success'
         )
-        return redirect(url_for('admin.index'))
+        # Send admins back to the admin panel; landlords back to the tenant record
+        if current_user.role == 'admin':
+            return redirect(url_for('admin.index'))
+        return redirect(url_for('tenants.view', tenant_id=tenant.id))
 
     return render_template('admin/invite_tenant.html',
-                           unlinked_tenants=unlinked_tenants)
+                           unlinked_tenants=unlinked_tenants,
+                           selected_tenant_id=preselect,
+                           is_admin=(current_user.role == 'admin'))
 
 
 # ── Edit user ─────────────────────────────────────────────────────────────────

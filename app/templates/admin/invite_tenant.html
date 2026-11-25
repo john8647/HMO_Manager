@@ -4,7 +4,11 @@
 {% block content %}
 <div class="flex-between mb-2">
     <h1>Invite Tenant to Portal</h1>
-    <a href="{{ url_for('admin.index') }}" class="btn btn-secondary">&larr; Back</a>
+    {% if is_admin %}
+    <a href="{{ url_for('admin.index') }}" class="btn btn-secondary">&larr; Admin Panel</a>
+    {% else %}
+    <a href="{{ url_for('tenants.index') }}" class="btn btn-secondary">&larr; All Tenants</a>
+    {% endif %}
 </div>
 
 <p class="text-muted">
@@ -26,8 +30,7 @@
             <option value="{{ tenant.id }}"
                 {% if selected_tenant_id == tenant.id|string %}selected{% endif %}>
                 {{ tenant.full_name }}
-                {% set contract = tenant.contracts.filter_by(
-                    is_active=True).first() %}
+                {% set contract = tenant.contracts.filter_by(is_active=True).first() %}
                 {% if contract %}
                     — {{ contract.property.address_line1 }},
                     {{ contract.room.room_name }}
@@ -105,8 +108,13 @@
 
     <div class="mt-2">
         <button type="submit" class="btn btn-primary">Create Portal Account</button>
+        {% if is_admin %}
         <a href="{{ url_for('admin.index') }}"
            class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+        {% else %}
+        <a href="{{ url_for('tenants.index') }}"
+           class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+        {% endif %}
     </div>
 
 </form>

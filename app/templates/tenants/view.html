@@ -87,6 +87,36 @@
     {% endif %}
 </div>
 
+<!-- ── Portal Access ──────────────────────────────────────────────────────── -->
+<h2>Portal Access</h2>
+<div class="card" style="max-width:520px; margin-bottom:28px;">
+    {% if tenant.portal_user_id %}
+        {# Resolve the portal username — look up the User record #}
+        {% set portal_user = tenant.portal_user_id %}
+        <div style="display:flex; align-items:center; gap:12px;">
+            <span class="badge badge-green" style="font-size:13px;">Active</span>
+            <span style="font-size:14px; color:var(--text-secondary);">
+                This tenant has a portal account and can log in.
+            </span>
+        </div>
+        <p style="margin:12px 0 0; font-size:13px; color:var(--text-secondary);">
+            To reset their password or change their username, go to
+            <a href="{{ url_for('admin.index') }}">Admin Panel → Tenant Portal Accounts</a>.
+        </p>
+    {% else %}
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+            <span class="badge badge-grey" style="font-size:13px;">No Account</span>
+            <span style="font-size:14px; color:var(--text-secondary);">
+                This tenant does not yet have a portal login.
+            </span>
+        </div>
+        <a href="{{ url_for('admin.invite_tenant') }}?tenant_id={{ tenant.id }}"
+           class="btn btn-primary">
+            &#128274; Invite to Portal
+        </a>
+    {% endif %}
+</div>
+
 <!-- Contracts -->
 <h2>Contracts</h2>
 {% if contracts %}
